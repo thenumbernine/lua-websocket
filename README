@@ -10,3 +10,6 @@ my ThreadManager library
 Timer is currently based on gettimeofday, which is loaded via LuaJIT's FFI, 
 but if you wish to use non-FFI Lua you can use the l_gettimeofday lua binding function
 (or even os.clock or os.time if you don't mind the resolution).
+
+Also provides an AJAX fallback, but some specific client code must be used with this.
+
