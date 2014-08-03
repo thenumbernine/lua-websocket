@@ -70,3 +70,4 @@ function AjaxSocketConn:close()
 end
 
 return AjaxSocketConn
+

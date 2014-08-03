@@ -220,8 +220,6 @@ print(getTime(),client,'>>',recv)
 		end
 	end
 
-	-- TODO hixie http://www.whatwg.org/specs/web-socket-protocol/ 
-
 	-- handle websockets
 	-- IE doesn't give back an 'upgrade'
 	if header.upgrade and header.upgrade:lower() == 'websocket' then
@@ -230,6 +228,7 @@ print(getTime(),client,'>>',recv)
 		local key2 = header['sec-websocket-key2']
 		if key1 and key2 then
 			-- Hixie websockets
+			-- http://www.whatwg.org/specs/web-socket-protocol/ 
 			local spaces1 = select(2, key1:gsub(' ', ''))
 			local spaces2 = select(2, key2:gsub(' ', ''))
 			local digits1 = assert(tonumber((key1:gsub('%D', '')))) / spaces1
@@ -358,7 +357,7 @@ print(getTime(),'creating ajax conn',sessionID,newSessionID)
 	local lines = table()
 	lines:insert('HTTP/1.1 200 OK\r\n')
 	lines:insert('Date '..os.date('!%a, %d %b %Y %T')..' GMT\r\n')
-	lines:insert('Content-Type: text/plain\r\n') --droid4 default browser is mystery crashing... i suspect it cant handle ajax...
+	lines:insert('Content-Type: text/plain\r\n') --droid4 default browser is mystery crashing... i suspect it cant handle json responses...
 	lines:insert('Content-Length: '..#response..'\r\n')
 	lines:insert('Access-Control-Allow-Origin: *\r\n')
 	lines:insert('Connection: close\r\n')		-- IE needs this

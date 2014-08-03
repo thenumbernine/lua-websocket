@@ -100,3 +100,4 @@ function WebSocketHixieConn:close(reason)
 end
 
 return WebSocketHixieConn
+

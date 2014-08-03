@@ -217,3 +217,4 @@ function WebSocketConn:close(reason)
 end
 
 return WebSocketConn
+
