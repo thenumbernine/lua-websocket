@@ -84,26 +84,26 @@ function WebSocketConn:readFrameCoroutine()
 			error('readFrameCoroutine got continuation frame')	-- TODO handle continuations
 		elseif opcode == FRAME_TEXT or opcode == FRAME_DATA then	-- new text/binary frame
 			local decoded = self:readFrameCoroutine_DecodeData()
-print('readFrameCoroutine got',decoded)
+--print('readFrameCoroutine got',decoded)
 			-- now process 'decoded'
 			self.server.threads:add(function()
 				self:received(decoded)
 			end)
 		elseif opcode == FRAME_CLOSE then	-- connection close
-print('readFrameCoroutine got connection close')
+--print('readFrameCoroutine got connection close')
 			local decoded = self:readFrameCoroutine_DecodeData()
-print('connection closed. reason ('..#decoded..'):',decoded)
+--print('connection closed. reason ('..#decoded..'):',decoded)
 			self.done = true
 			break
 		elseif opcode == FRAME_PING then -- ping
-print('readFrameCoroutine got ping')
+--print('readFrameCoroutine got ping')
 		elseif opcode == FRAME_PONG then -- pong
-print('readFrameCoroutine got pong')
+--print('readFrameCoroutine got pong')
 		else
 			error("got a reserved opcode: "..opcode)
 		end
 	end			
-print('readFrameCoroutine stopped')
+--print('readFrameCoroutine stopped')
 end
 
 -- private
@@ -136,7 +136,7 @@ function WebSocketConn:listenCoroutine()
 	
 	-- one thread needs responsibility to close ...
 	self:close()
-print('listenCoroutine stopped')
+--print('listenCoroutine stopped')
 end
 
 -- public 
@@ -146,7 +146,7 @@ function WebSocketConn:send(msg, opcode)
 
 	-- upon sending this to the browser, the browser is sending back 6 chars and then crapping out
 	--	no warnings given.  browser keeps acting like all is cool but it stops actually sending data afterwards. 
-print('send',#msg,msg)
+--print('send',#msg,msg)
 	if #msg < 126 then
 		local data = codebyte .. string.char(#msg) .. msg
 		assert(#data == 2 + #msg)
@@ -176,7 +176,7 @@ print('send',#msg,msg)
 		self.socket:send(data)
 		--]]
 		--[[ multiple frames ... browser doesnt register a frame and complains "must use largest size" ... 
-print('msg size',#msg)
+--print('msg size',#msg)
 		for start=1,#msg,65535 do
 			local len = start + 65535
 			if start + len > #msg then len = #msg - start end
@@ -204,7 +204,7 @@ end
 
 -- public, abstract
 function WebSocketConn:received(cmd)
-print("todo implement me: ",cmd)
+	print("todo implement me: ",cmd)
 end
 
 -- public

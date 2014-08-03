@@ -56,7 +56,7 @@ local Server = class()
 Server.nextConnUID = 1
 	
 -- class for instanciation of connections
-Server.connClass = nil 
+Server.connClass = require 'websocket.simpleconn'
 
 --[[
 args:
@@ -86,6 +86,7 @@ function Server:getNextConnUID()
 	self.nextConnUID = self.nextConnUID + 1
 	return uid
 end
+
 
 function Server:update()
 	socket.sleep(.001)
@@ -195,6 +196,7 @@ function Server:connectRemoteCoroutine(client)
 	
 	-- chrome has a bug where it connects and asks for a favicon even if there is none, or something, idk ...
 	local firstLine, reason = receiveBlocking(client, 5)
+print('got firstLine', firstLine)
 	print(getTime(),client,'>>',firstLine,reason)
 	if not (firstLine == 'GET / HTTP/1.1' or firstLine == 'POST / HTTP/1.1') then
 		print('got a non-http conn')

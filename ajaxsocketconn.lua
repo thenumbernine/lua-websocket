@@ -19,7 +19,7 @@ function AjaxSocketConn:isActive()
 end
 
 function AjaxSocketConn:send(msg)
-	--print('ajax sending size',#msg)
+--print('ajax sending size',#msg)
 	self.sendQueue:insert(msg)
 end
 

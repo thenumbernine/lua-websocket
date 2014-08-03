@@ -13,3 +13,11 @@ but if you wish to use non-FFI Lua you can use the l_gettimeofday lua binding fu
 
 Also provides an AJAX fallback, but some specific client code must be used with this.
 
+To recieve messages, override the Server class 
+Ex:
+local MyServer = class(require 'websocket.server')
+
+To send messages, override the SimpleConn class and assign the new class to the server's connClass member.
+Ex:
+MyConn = class(require 'websocket.simpleconn')
+MyServer.connClass = MyConn
