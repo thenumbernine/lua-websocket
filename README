@@ -1,0 +1,12 @@
+WebSocket server for Lua
+uses the following:
+LuaSocket
+LuaCrypto
+LuaBitOp
+dkjson
+my Lua ext library
+my ThreadManager library
+
+Timer is currently based on gettimeofday, which is loaded via LuaJIT's FFI, 
+but if you wish to use non-FFI Lua you can use the l_gettimeofday lua binding function
+(or even os.clock or os.time if you don't mind the resolution).
