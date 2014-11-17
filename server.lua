@@ -61,6 +61,7 @@ Server.connClass = require 'websocket.simpleconn'
 --[[
 args:
 	threads = (optional) ThreadManager.  if you provide one then you have to update it manually.
+	address (default is *)
 	port (default is 27000)
 --]]
 function Server:init(args)
@@ -75,7 +76,7 @@ function Server:init(args)
 		self.ownThreads = true
 	end
 	
-	self.socket = assert(socket.bind('*', args.port or 27000))
+	self.socket = assert(socket.bind(args.address or '*', args.port or 27000))
 	self.socketaddr, self.socketport = self.socket:getsockname()
 	print('listening '..self.socketaddr..':'..self.socketport)
 	self.socket:settimeout(0, 'b')

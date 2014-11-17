@@ -17,7 +17,7 @@ ClientConn = makeClass({
 	
 		//register implementation classes
 		this.AsyncComm = makeClass({
-			uri : "christopheremoore.net:27000/"
+			uri : assertExists(window, 'socialBrowsingWebSocketAddress')
 		});
 
 		this.AsyncCommWebSocket = makeClass({
