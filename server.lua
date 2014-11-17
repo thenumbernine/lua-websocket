@@ -95,6 +95,7 @@ function Server:update()
 	local client = self.socket:accept()
 	if client then
 print('got connection!',client)
+print('connection from', client:getpeername())
 		-- why is this accepting connections twice?
 		-- is the browser really reconnecting, or is luasocket messing up?
 		self.threads:add(self.connectRemoteCoroutine, self, client)
@@ -193,7 +194,8 @@ end
 -- create a remote connection
 function Server:connectRemoteCoroutine(client)
 	client:settimeout(0, 'b')	-- for the benefit of coroutines ...
-	
+	client:setoption('keepalive', true)
+
 	-- chrome has a bug where it connects and asks for a favicon even if there is none, or something, idk ...
 	local firstLine, reason = receiveBlocking(client, 5)
 print('got firstLine', firstLine)
