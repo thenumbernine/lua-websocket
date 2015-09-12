@@ -1,6 +1,7 @@
 local table = require 'ext.table'
 local class = require 'ext.class'
 local bit = require 'bit'
+local getTime = require 'websocket.gettimeofday'
 
 local WebSocketHixieConn = class()
 
