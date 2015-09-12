@@ -1,6 +1,6 @@
-require 'ext'
+local table = require 'ext.table'
 local class = require 'ext.class'
-require 'bit'
+local bit = require 'bit'
 
 local WebSocketHixieConn = class()
 
@@ -100,4 +100,3 @@ function WebSocketHixieConn:close(reason)
 end
 
 return WebSocketHixieConn
-

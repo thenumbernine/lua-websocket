@@ -1,9 +1,9 @@
-require 'ext'
+local table = require 'ext.table'
 local class = require 'ext.class'
-require 'socket'
+local socket = require 'socket'
 require 'crypto'
 require 'mime'
-require 'bit'
+local bit = require 'bit'
 local json = require 'dkjson'
 local ThreadManager = require 'threadmanager'
 local WebSocketConn = require 'websocket.websocketconn'
@@ -378,4 +378,3 @@ print(client,'<<'..line:match('^(.*)\r\n$'))
 end
 
 return Server
-

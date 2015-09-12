@@ -1,7 +1,6 @@
-require 'ext'
+local table = require 'ext.table'
 local class = require 'ext.class'
-require 'bit'
-
+local bit = require 'bit'
 
 local WebSocketConn = class()
 
@@ -217,4 +216,3 @@ function WebSocketConn:close(reason)
 end
 
 return WebSocketConn
-

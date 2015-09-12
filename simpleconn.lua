@@ -2,7 +2,6 @@
 provides the basics of a conn class's interaction with both the server and the conn implementation
 --]]
 
-require 'ext'
 local class = require 'ext.class'
 local SimpleConn = class()
 
@@ -24,7 +23,4 @@ function SimpleConn:received(data)
 	print('received',data)
 end
 
-
-
 return SimpleConn
-
