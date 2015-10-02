@@ -1,25 +1,20 @@
 local table = require 'ext.table'
 local class = require 'ext.class'
 local socket = require 'socket'
-require 'crypto'
-require 'mime'
+local crypto = require 'crypto'
+local mime = require 'mime'
 local bit = require 'bit'
 local json = require 'dkjson'
 local ThreadManager = require 'threadmanager'
 local WebSocketConn = require 'websocket.websocketconn'
 local WebSocketHixieConn = require 'websocket.websockethixieconn'
 local AjaxSocketConn = require 'websocket.ajaxsocketconn'
-local getTime = require 'websocket.gettimeofday'
 
 
 -- coroutine function that blocks til it gets something
 local function receiveBlocking(conn, waitduration, secondsTimerFunc)
 	coroutine.yield()
 	
-	if not secondsTimerFunc then
-		secondsTimerFunc = getTime
-	end
-
 	local endtime
 	if waitduration then 
 		endtime = secondsTimerFunc() + waitduration
@@ -63,9 +58,12 @@ args:
 	threads = (optional) ThreadManager.  if you provide one then you have to update it manually.
 	address (default is *)
 	port (default is 27000)
+	getTime (optional) = fraction-of-seconds-accurate timer function.  default requires either FFI or an external C binding or os.clock ... or you can provide your own.
 --]]
 function Server:init(args)
 	if not args then args = {} end
+
+	self.getTime = args.getTime or require 'websocket.gettimeofday'
 
 	self.conns = table()
 	self.ajaxConns = table()	-- mapped from sessionID
@@ -198,9 +196,9 @@ function Server:connectRemoteCoroutine(client)
 	client:setoption('keepalive', true)
 
 	-- chrome has a bug where it connects and asks for a favicon even if there is none, or something, idk ...
-	local firstLine, reason = receiveBlocking(client, 5)
+	local firstLine, reason = receiveBlocking(client, 5, self.getTime)
 print('got firstLine', firstLine)
-	print(getTime(),client,'>>',firstLine,reason)
+	print(self.getTime(),client,'>>',firstLine,reason)
 	if not (firstLine == 'GET / HTTP/1.1' or firstLine == 'POST / HTTP/1.1') then
 		print('got a non-http conn')
 		return
@@ -208,8 +206,8 @@ print('got firstLine', firstLine)
 	
 	local header = table()
 	while true do
-		local recv = mustReceiveBlocking(client, 1)
-print(getTime(),client,'>>',recv)
+		local recv = mustReceiveBlocking(client, 1, self.getTime)
+print(self.getTime(),client,'>>',recv)
 		if recv == '' then break end
 		local k,v = recv:match('^(.-): (.*)$')
 		k = k:lower()
@@ -241,7 +239,7 @@ print(getTime(),client,'>>',recv)
 			
 			local body, err, partial = client:receive(tonumber(header['content-length']) or '*a')
 			body = body or partial
-			print(getTime(),client,'>>',body)
+			print(self.getTime(),client,'>>',body)
 			assert(#body == 8)
 		
 			local response = crypto.digest('md5', be32ToStr(digits1) .. be32ToStr(digits2) .. body, true)
@@ -256,7 +254,7 @@ print(getTime(),client,'>>',recv)
 				'\r\n',
 				response,
 			} do
-print(getTime(),client,'<<',line:match('^(.*)\r\n$'))
+print(self.getTime(),client,'<<',line:match('^(.*)\r\n$'))
 				client:send(line)
 			end
 
@@ -265,7 +263,7 @@ print(getTime(),client,'<<',line:match('^(.*)\r\n$'))
 				socket = client,
 				implClass = WebSocketHixieConn,
 			}
-			self.lastActiveConnTime = getTime()
+			self.lastActiveConnTime = self.getTime()
 			return
 		else
 			-- RFC websockets
@@ -282,19 +280,19 @@ print(getTime(),client,'<<',line:match('^(.*)\r\n$'))
 				'Sec-WebSocket-Accept: '..response..'\r\n',
 				'\r\n',
 			} do
-print(getTime(),client,'<<'..line:match('^(.*)\r\n$'))
+print(self.getTime(),client,'<<'..line:match('^(.*)\r\n$'))
 				client:send(line)
 			end
 
 			-- only add to Server.conns through *HERE*
-print(getTime(),'creating websocket conn')
+print(self.getTime(),'creating websocket conn')
 			local serverConn = self.connClass{
 				server = self,
 				socket = client,
 				implClass = WebSocketConn,
 			}
 print('constructing ServerConn',serverConn,'...')
-			self.lastActiveConnTime = getTime()
+			self.lastActiveConnTime = self.getTime()
 			return
 		end
 	end
@@ -306,7 +304,7 @@ print('constructing ServerConn',serverConn,'...')
 
 	local body, err, partial = client:receive(tonumber(header['content-length']) or '*a')
 	body = body or partial
-print(getTime(),client,'>>',body)
+print(self.getTime(),client,'>>',body)
 	
 	local receiveQueue = json.decode(body)
 	local sessionID
@@ -337,16 +335,16 @@ print('generating session id', sessionID)
 	end
 	-- no pre-existing connection? make a new one
 	if serverConn then
-print(getTime(),'updating ajax conn')
+print(self.getTime(),'updating ajax conn')
 	else
-print(getTime(),'creating ajax conn',sessionID,newSessionID)
+print(self.getTime(),'creating ajax conn',sessionID,newSessionID)
 		serverConn = self.connClass{
 			server = self,
 			implClass = AjaxSocketConn,
 			sessionID = sessionID,
 		}
 		self.ajaxConns[sessionID] = serverConn
-		self.lastActiveConnTime = getTime()
+		self.lastActiveConnTime = self.getTime()
 	end
 
 	-- now hand it off to the serverConn to process sends & receives ...
