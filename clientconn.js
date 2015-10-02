@@ -7,6 +7,9 @@ requires my js-util project
 
 ClientConn = makeClass({
 	init : function(args) {
+		if (args.uri !== undefined) this.uri = args.uri;
+		if (this.uri === undefined) throw "expected uri";
+
 		var clientConn = this;
 	
 		//callback on received message
@@ -16,9 +19,7 @@ ClientConn = makeClass({
 		this.sendQueue = [];
 	
 		//register implementation classes
-		this.AsyncComm = makeClass({
-			uri : assertExists(window, 'socialBrowsingWebSocketAddress')
-		});
+		this.AsyncComm = makeClass();
 
 		this.AsyncCommWebSocket = makeClass({
 			name : 'AsyncCommWebSocket',
@@ -30,7 +31,7 @@ ClientConn = makeClass({
 			reconnect : function(done) {
 				if (this.connected) return;
 				var thiz = this;
-				this.ws = new WebSocket('ws://'+this.uri);
+				this.ws = new WebSocket('ws://'+clientConn.uri);
 				this.ws.onopen = function(evt) {
 console.log('websocket onopen', evt);
 					thiz.connected = true;
@@ -79,7 +80,7 @@ console.log('websocket onerror', evt);
 					thiz.sendQueue = [];
 					$.ajax({
 						type : 'POST',
-						url : 'http://'+thiz.uri,
+						url : 'http://'+clientConn.uri,
 						data : JSON.stringify(sendQueue),
 						//dataType : 'json',
 						success : function(msgsdata) {
