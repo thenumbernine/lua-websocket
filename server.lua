@@ -110,9 +110,9 @@ print('connection from', client:getpeername())
 			if conn.socketImpl:isa(AjaxSocketConn) then
 				assert(self.ajaxConns[conn.socketImpl.sessionID] == conn)
 				self.ajaxConns[conn.socketImpl.sessionID] = nil
-print(getTime(),'removing ajax conn',conn.socketImpl.sessionID)
+print(self.getTime(),'removing ajax conn',conn.socketImpl.sessionID)
 			else
-print(getTime(),'removing websocket conn')
+print(self.getTime(),'removing websocket conn')
 			end
 			self.conns[i] = nil	
 		else
@@ -164,12 +164,12 @@ function Server:delay(duration, callback, ...)
 	local callingTrace = debug.traceback()
 	self.threads:add(function()
 		coroutine.yield()
-		local thisTime = getTime()
+		local thisTime = self.getTime()
 		local startTime = thisTime 
 		local endTime = thisTime + duration
 		repeat
 			coroutine.yield()
-			thisTime = getTime()
+			thisTime = self.getTime()
 		until thisTime > endTime
 		xpcall(function()
 			callback(unpack(args))
