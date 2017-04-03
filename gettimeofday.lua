@@ -5,14 +5,14 @@ local success, getTime = pcall(function()
 	return function()
 		if not gettimeofday_tv then
 			ffi.cdef[[
-	typedef long time_t;
-	struct timeval {
-		time_t tv_sec;
-		time_t tv_usec;
-	};
+typedef long time_t;
+struct timeval {
+	time_t tv_sec;
+	time_t tv_usec;
+};
 
-	int gettimeofday(struct timeval*, void*);
-	]]
+int gettimeofday(struct timeval*, void*);
+]]
 			gettimeofday_tv = ffi.new('struct timeval')
 		end
 		local results = ffi.C.gettimeofday(gettimeofday_tv, nil)
