@@ -55,6 +55,7 @@ Server.connClass = require 'websocket.simpleconn'
 
 --[[
 args:
+	hostname - to be sent back via socket header
 	threads = (optional) ThreadManager.  if you provide one then you have to update it manually.
 	address (default is *)
 	port (default is 27000)
@@ -74,6 +75,7 @@ function Server:init(args)
 		self.ownThreads = true
 	end
 	
+	self.hostname = assert(args.hostname, "expectsed hostname")
 	self.socket = assert(socket.bind(args.address or '*', args.port or 27000))
 	self.socketaddr, self.socketport = self.socket:getsockname()
 	print('listening '..self.socketaddr..':'..self.socketport)
@@ -172,7 +174,7 @@ function Server:delay(duration, callback, ...)
 			thisTime = self.getTime()
 		until thisTime > endTime
 		xpcall(function()
-			callback(unpack(args))
+			callback(table.unpack(args))
 		end, function(err)
 			io.stderr:write(tostring(err)..'\n')
 			io.stderr:write(debug.traceback())
@@ -248,8 +250,8 @@ print(self.getTime(),client,'>>',recv)
 				'HTTP/1.1 101 WebSocket Protocol Handshake\r\n',
 				'Upgrade: WebSocket\r\n',
 				'Connection: Upgrade\r\n',
-				'Sec-WebSocket-Origin: http://ihavenoparachute.com\r\n',
-				'Sec-WebSocket-Location: ws://ihavenoparachute.com:27000/\r\n',
+				'Sec-WebSocket-Origin: http://'..self.hostname..'\r\n',
+				'Sec-WebSocket-Location: ws://'..self.hostname..':'..self.socketport..'/\r\n',
 				'Sec-WebSocket-Protocol: sample\r\n',
 				'\r\n',
 				response,
