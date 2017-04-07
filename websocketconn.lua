@@ -33,7 +33,7 @@ function WebSocketConn:readFrameCoroutine_DecodeData()
 		size = 0
 		for i=1,8 do
 			size = bit.lshift(size, 8)
-			size = bit.bor(size, coroutine.yield())	-- are lua bit ops 64 bit?
+			size = bit.bor(size, coroutine.yield())	-- are lua bit ops 64 bit?  well, bit32 is not for sure.
 		end
 	elseif size == 126 then
 		size = 0
@@ -67,7 +67,10 @@ local FRAME_PONG = 10
 
 -- private
 function WebSocketConn:readFrameCoroutine()
-	while not self.done and self.server and self.server.socket:getsockname() do
+	while not self.done 
+	and self.server 
+	and self.server.socket:getsockname() 
+	do
 		-- this is blocking ...
 		local op = coroutine.yield()
 		local fin = bit.band(op, 0x80) ~= 0
