@@ -1,7 +1,6 @@
 local table = require 'ext.table'
 local class = require 'ext.class'
 local socket = require 'socket'
-local crypto = require 'crypto'
 local mime = require 'mime'
 local bit = bit32 or require 'bit'
 local json = require 'dkjson'
@@ -9,7 +8,7 @@ local ThreadManager = require 'threadmanager'
 local WebSocketConn = require 'websocket.websocketconn'
 local WebSocketHixieConn = require 'websocket.websockethixieconn'
 local AjaxSocketConn = require 'websocket.ajaxsocketconn'
-
+local digest = require 'websocket.digest'
 
 -- coroutine function that blocks til it gets something
 local function receiveBlocking(conn, waitduration, secondsTimerFunc)
@@ -244,7 +243,7 @@ print(self.getTime(),client,'>>',recv)
 			print(self.getTime(),client,'>>',body)
 			assert(#body == 8)
 		
-			local response = crypto.digest('md5', be32ToStr(digits1) .. be32ToStr(digits2) .. body, true)
+			local response = digest('md5', be32ToStr(digits1) .. be32ToStr(digits2) .. body, true)
 
 			for _,line in ipairs{
 				'HTTP/1.1 101 WebSocket Protocol Handshake\r\n',
@@ -272,7 +271,7 @@ print(self.getTime(),client,'<<',line:match('^(.*)\r\n$'))
 			
 			local key = header['sec-websocket-key']
 			local magic = key .. '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
-			local sha1response = crypto.digest('sha1', magic, true)
+			local sha1response = digest('sha1', magic, true)
 			local response = mime.b64(sha1response)
 			
 			for _,line in ipairs{
@@ -332,7 +331,7 @@ print('got session id', sessionID)
 		-- so headers and data need to be re-sent every time a new poll conn is made
 	else
 		newSessionID = true
-		sessionID = mime.b64(crypto.digest('sha1', header:values():concat()..os.date(), true))
+		sessionID = mime.b64(digest('sha1', header:values():concat()..os.date(), true))
 print('generating session id', sessionID)
 	end
 	-- no pre-existing connection? make a new one
