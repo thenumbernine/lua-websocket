@@ -6,10 +6,10 @@ local class = require 'ext.class'
 local SimpleConn = class()
 
 function SimpleConn:init(args)
-	self.socketImpl = args.implClass(args)
-	self.socketImpl.received = function(impl, ...)
+	args.received = function(impl, ...)
 		return self:received(...)
 	end
+	self.socketImpl = args.implClass(args)
 
 	self.server = args.server
 	self.uid = self.server:getNextConnUID()
