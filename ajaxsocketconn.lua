@@ -7,10 +7,18 @@ local AjaxSocketConn = class()
 
 AjaxSocketConn.timeout = 60	-- how long to timeout?
 
+--[[
+args:
+	server
+	sessionID
+	received = function(socketimpl, msg)
+--]]
 function AjaxSocketConn:init(args)
 	-- no point in keeping track fo sockets -- they will change each ajax connect
 	self.server = assert(args.server)
 	self.sessionID = assert(args.sessionID)
+	self.received = assert(args.received)
+	
 	self.sendQueue = table()
 	self.lastPollTime = getTime()
 end
@@ -63,6 +71,11 @@ function AjaxSocketConn:poll(receiveQueue)
 	end
 
 	return sendQueue 
+end
+
+-- public, abstract
+function AjaxSocketConn:received(cmd)
+	print("todo implement me: ",cmd)
 end
 
 -- called by the server?  when the conn is to go down?
