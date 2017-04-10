@@ -198,8 +198,7 @@ function Server:connectRemoteCoroutine(client)
 
 	-- chrome has a bug where it connects and asks for a favicon even if there is none, or something, idk ...
 	local firstLine, reason = receiveBlocking(client, 5, self.getTime)
-print('got firstLine', firstLine)
-	print(self.getTime(),client,'>>',firstLine,reason)
+--print(self.getTime(),client,'>>',firstLine,reason)
 	if not (firstLine == 'GET / HTTP/1.1' or firstLine == 'POST / HTTP/1.1') then
 		print('got a non-http conn')
 		return
@@ -208,7 +207,7 @@ print('got firstLine', firstLine)
 	local header = table()
 	while true do
 		local recv = mustReceiveBlocking(client, 1, self.getTime)
-print(self.getTime(),client,'>>',recv)
+--print(self.getTime(),client,'>>',recv)
 		if recv == '' then break end
 		local k,v = recv:match('^(.-): (.*)$')
 		k = k:lower()
@@ -240,7 +239,7 @@ print(self.getTime(),client,'>>',recv)
 			
 			local body, err, partial = client:receive(tonumber(header['content-length']) or '*a')
 			body = body or partial
-			print(self.getTime(),client,'>>',body)
+--print(self.getTime(),client,'>>',body)
 			assert(#body == 8)
 		
 			local response = digest('md5', be32ToStr(digits1) .. be32ToStr(digits2) .. body, true)
@@ -255,7 +254,7 @@ print(self.getTime(),client,'>>',recv)
 				'\r\n',
 				response,
 			} do
-print(self.getTime(),client,'<<',line:match('^(.*)\r\n$'))
+--print(self.getTime(),client,'<<',line:match('^(.*)\r\n$'))
 				client:send(line)
 			end
 
@@ -281,7 +280,7 @@ print(self.getTime(),client,'<<',line:match('^(.*)\r\n$'))
 				'Sec-WebSocket-Accept: '..response..'\r\n',
 				'\r\n',
 			} do
-print(self.getTime(),client,'<<'..line:match('^(.*)\r\n$'))
+--print(self.getTime(),client,'<<'..line:match('^(.*)\r\n$'))
 				client:send(line)
 			end
 
@@ -305,7 +304,7 @@ print('constructing ServerConn',serverConn,'...')
 
 	local body, err, partial = client:receive(tonumber(header['content-length']) or '*a')
 	body = body or partial
-print(self.getTime(),client,'>>',body)
+--print(self.getTime(),client,'>>',body)
 	
 	local receiveQueue = json.decode(body)
 	local sessionID
@@ -369,7 +368,7 @@ print(self.getTime(),'creating ajax conn',sessionID,newSessionID)
 	lines:insert(response..'\r\n')
 	
 	for _,line in ipairs(lines) do
-print(client,'<<'..line:match('^(.*)\r\n$'))
+--print(client,'<<'..line:match('^(.*)\r\n$'))
 		client:send(line)
 	end
 	

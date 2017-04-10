@@ -34,7 +34,7 @@ function WebSocketHixieConn:readFrameCoroutine()
 			data = table()
 		elseif ch:byte() == 0xff then -- end
 			data = data:concat()
-			print(getTime(),self.socket,'>>',data)
+--print(getTime(),self.socket,'>>',data)
 			self.server.threads:add(function()
 				self:received(data)
 			end)
@@ -56,7 +56,7 @@ function WebSocketHixieConn:listenCoroutine()
 	do
 		local b, reason = self.socket:receive(1)
 		if b then
-			--print(getTime(),self.socket,'>>',('%02x'):format(b:byte()))
+--print(getTime(),self.socket,'>>',('%02x'):format(b:byte()))
 			local res, err = coroutine.resume(self.readFrameThread, b)
 			if not res then
 				error(err..'\n'..debug.traceback(self.readFrameThread))
