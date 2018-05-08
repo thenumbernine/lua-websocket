@@ -52,6 +52,9 @@ Server.nextConnUID = 1
 -- class for instanciation of connections
 Server.connClass = require 'websocket.simpleconn'
 
+-- default port goes here
+Server.port = 27000
+
 --[[
 args:
 	hostname - to be sent back via socket header
@@ -61,7 +64,8 @@ args:
 	getTime (optional) = fraction-of-seconds-accurate timer function.  default requires either FFI or an external C binding or os.clock ... or you can provide your own.
 --]]
 function Server:init(args)
-	if not args then args = {} end
+	args = args or {}
+	self.port = args.port
 
 	self.getTime = args.getTime or require 'websocket.gettimeofday'
 
@@ -75,7 +79,7 @@ function Server:init(args)
 	end
 	
 	self.hostname = assert(args.hostname, "expectsed hostname")
-	self.socket = assert(socket.bind(args.address or '*', args.port or 27000))
+	self.socket = assert(socket.bind(args.address or '*', self.port))
 	self.socketaddr, self.socketport = self.socket:getsockname()
 	print('listening '..self.socketaddr..':'..self.socketport)
 	self.socket:settimeout(0, 'b')
