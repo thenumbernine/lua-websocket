@@ -78,7 +78,7 @@ function Server:init(args)
 		self.ownThreads = true
 	end
 	
-	self.hostname = assert(args.hostname, "expectsed hostname")
+	self.hostname = assert(args.hostname, "expected hostname")
 	self.socket = assert(socket.bind(args.address or '*', self.port))
 	self.socketaddr, self.socketport = self.socket:getsockname()
 	print('listening '..self.socketaddr..':'..self.socketport)
