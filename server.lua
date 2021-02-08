@@ -77,9 +77,12 @@ function Server:init(args)
 		self.threads = ThreadManager()
 		self.ownThreads = true
 	end
-	
+
+	local address = args.address or '*'
 	self.hostname = assert(args.hostname, "expected hostname")
-	self.socket = assert(socket.bind(args.address or '*', self.port))
+print("hostname "..tostring(self.hostname))
+print("binding to "..tostring(address)..":"..tostring(self.port))	
+	self.socket = assert(socket.bind(address, self.port))
 	self.socketaddr, self.socketport = self.socket:getsockname()
 	print('listening '..self.socketaddr..':'..self.socketport)
 	self.socket:settimeout(0, 'b')
@@ -112,7 +115,7 @@ print('connection from', client:getpeername())
 			if conn.onRemove then
 				conn:onRemove()
 			end
-			if conn.socketImpl:isa(AjaxSocketConn) then
+			if AjaxSocketConn:isa(conn.socketImpl) then
 				assert(self.ajaxConns[conn.socketImpl.sessionID] == conn)
 				self.ajaxConns[conn.socketImpl.sessionID] = nil
 print(self.getTime(),'removing ajax conn',conn.socketImpl.sessionID)
