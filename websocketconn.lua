@@ -8,13 +8,13 @@ local WebSocketConn = class()
 args:
 	server
 	socket
-	received = function(socketimpl, msg)
+	received = function(socketimpl, msg) (optional)
 --]]
 function WebSocketConn:init(args)
 	local sock = assert(args.socket)
 	self.server = assert(args.server)
 	self.socket = sock
-	self.received = assert(args.received)
+	self.received = args.received
 	
 	self.listenThread = self.server.threads:add(self.listenCoroutine, self)
 	self.readFrameThread = coroutine.create(self.readFrameCoroutine)	-- not part of the thread pool -- yielded manually with the next read byte

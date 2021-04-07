@@ -55,6 +55,9 @@ Server.connClass = require 'websocket.simpleconn'
 -- default port goes here
 Server.port = 27000
 
+-- TODO log levels
+Server.logging = true
+
 --[[
 args:
 	hostname - to be sent back via socket header
@@ -80,11 +83,15 @@ function Server:init(args)
 
 	local address = args.address or '*'
 	self.hostname = assert(args.hostname, "expected hostname")
-print("hostname "..tostring(self.hostname))
-print("binding to "..tostring(address)..":"..tostring(self.port))	
+	if self.logging then
+		print("hostname "..tostring(self.hostname))
+		print("binding to "..tostring(address)..":"..tostring(self.port))	
+	end
 	self.socket = assert(socket.bind(address, self.port))
 	self.socketaddr, self.socketport = self.socket:getsockname()
-	print('listening '..self.socketaddr..':'..self.socketport)
+	if self.logging then
+		print('listening '..self.socketaddr..':'..self.socketport)
+	end
 	self.socket:settimeout(0, 'b')
 end
 
@@ -101,8 +108,10 @@ function Server:update()
 	-- listen for new connections
 	local client = self.socket:accept()
 	if client then
-print('got connection!',client)
-print('connection from', client:getpeername())
+		if self.logging then
+			print('got connection!',client)
+			print('connection from', client:getpeername())
+		end
 		-- why is this accepting connections twice?
 		-- is the browser really reconnecting, or is luasocket messing up?
 		self.threads:add(self.connectRemoteCoroutine, self, client)
@@ -118,9 +127,13 @@ print('connection from', client:getpeername())
 			if AjaxSocketConn:isa(conn.socketImpl) then
 				assert(self.ajaxConns[conn.socketImpl.sessionID] == conn)
 				self.ajaxConns[conn.socketImpl.sessionID] = nil
-print(self.getTime(),'removing ajax conn',conn.socketImpl.sessionID)
+				if self.logging then
+					print(self.getTime(),'removing ajax conn',conn.socketImpl.sessionID)
+				end
 			else
-print(self.getTime(),'removing websocket conn')
+				if self.logging then
+					print(self.getTime(),'removing websocket conn')
+				end
 			end
 			self.conns[i] = nil	
 		else
@@ -205,16 +218,22 @@ function Server:connectRemoteCoroutine(client)
 
 	-- chrome has a bug where it connects and asks for a favicon even if there is none, or something, idk ...
 	local firstLine, reason = receiveBlocking(client, 5, self.getTime)
---print(self.getTime(),client,'>>',firstLine,reason)
+	if self.logging then
+		print(self.getTime(),client,'>>',firstLine,reason)
+	end
 	if not (firstLine == 'GET / HTTP/1.1' or firstLine == 'POST / HTTP/1.1') then
-		print('got a non-http conn')
+		if self.logging then
+			print('got a non-http conn')
+		end
 		return
 	end
 	
 	local header = table()
 	while true do
 		local recv = mustReceiveBlocking(client, 1, self.getTime)
---print(self.getTime(),client,'>>',recv)
+		if self.logging then
+			print(self.getTime(),client,'>>',recv)
+		end
 		if recv == '' then break end
 		local k,v = recv:match('^(.-): (.*)$')
 		k = k:lower()
@@ -246,7 +265,9 @@ function Server:connectRemoteCoroutine(client)
 			
 			local body, err, partial = client:receive(tonumber(header['content-length']) or '*a')
 			body = body or partial
---print(self.getTime(),client,'>>',body)
+			if self.logging then
+				print(self.getTime(),client,'>>',body)
+			end
 			assert(#body == 8)
 		
 			local response = digest('md5', be32ToStr(digits1) .. be32ToStr(digits2) .. body, true)
@@ -261,7 +282,9 @@ function Server:connectRemoteCoroutine(client)
 				'\r\n',
 				response,
 			} do
---print(self.getTime(),client,'<<',line:match('^(.*)\r\n$'))
+				if self.logging then
+					print(self.getTime(),client,'<<',line:match('^(.*)\r\n$'))
+				end
 				client:send(line)
 			end
 
@@ -287,18 +310,24 @@ function Server:connectRemoteCoroutine(client)
 				'Sec-WebSocket-Accept: '..response..'\r\n',
 				'\r\n',
 			} do
---print(self.getTime(),client,'<<'..line:match('^(.*)\r\n$'))
+				if self.loggign then
+					print(self.getTime(),client,'<<'..line:match('^(.*)\r\n$'))
+				end
 				client:send(line)
 			end
 
 			-- only add to Server.conns through *HERE*
-print(self.getTime(),'creating websocket conn')
+			if self.logging then
+				print(self.getTime(),'creating websocket conn')
+			end
 			local serverConn = self.connClass{
 				server = self,
 				socket = client,
 				implClass = WebSocketConn,
 			}
-print('constructing ServerConn',serverConn,'...')
+			if self.logging then
+				print('constructing ServerConn',serverConn,'...')
+			end
 			self.lastActiveConnTime = self.getTime()
 			return
 		end
@@ -311,12 +340,15 @@ print('constructing ServerConn',serverConn,'...')
 
 	local body, err, partial = client:receive(tonumber(header['content-length']) or '*a')
 	body = body or partial
---print(self.getTime(),client,'>>',body)
-	
+	if self.logging then
+		print(self.getTime(),client,'>>',body)
+	end
 	local receiveQueue = json.decode(body)
 	local sessionID
 	if not receiveQueue then
-		print('failed to decode ajax body',body)
+		if self.logging then
+			print('failed to decode ajax body',body)
+		end
 		receiveQueue = {}
 	else
 		if #receiveQueue > 0 then
@@ -327,7 +359,9 @@ print('constructing ServerConn',serverConn,'...')
 			end
 		end
 	end
-print('got session id', sessionID)
+	if self.logging then
+		print('got session id', sessionID)
+	end
 
 	local newSessionID
 	if sessionID then	-- if the client has a sessionID then ...
@@ -338,13 +372,19 @@ print('got session id', sessionID)
 	else
 		newSessionID = true
 		sessionID = mime.b64(digest('sha1', header:values():concat()..os.date(), true))
-print('generating session id', sessionID)
+		if self.logging then
+			print('generating session id', sessionID)
+		end
 	end
 	-- no pre-existing connection? make a new one
 	if serverConn then
-print(self.getTime(),'updating ajax conn')
+		if self.logging then
+			print(self.getTime(),'updating ajax conn')
+		end
 	else
-print(self.getTime(),'creating ajax conn',sessionID,newSessionID)
+		if self.logging then
+			print(self.getTime(),'creating ajax conn',sessionID,newSessionID)
+		end
 		serverConn = self.connClass{
 			server = self,
 			implClass = AjaxSocketConn,
@@ -361,7 +401,9 @@ print(self.getTime(),'creating ajax conn',sessionID,newSessionID)
 	end
 	local response = json.encode(responseQueue)
 	
-	print('sending ajax response size',#response,'body',response)
+	if self.logging then
+		print('sending ajax response size',#response,'body',response)
+	end
 	
 	-- send response header
 	local lines = table()
@@ -375,7 +417,9 @@ print(self.getTime(),'creating ajax conn',sessionID,newSessionID)
 	lines:insert(response..'\r\n')
 	
 	for _,line in ipairs(lines) do
---print(client,'<<'..line:match('^(.*)\r\n$'))
+		if self.logging then
+			print(client,'<<'..line:match('^(.*)\r\n$'))
+		end
 		client:send(line)
 	end
 	
