@@ -1,6 +1,15 @@
 local table = require 'ext.table'
 local class = require 'ext.class'
-local bit = bit32 or require 'bit'
+
+local result
+local bit = bit32
+if not bit then
+	result, bit = pcall(require, 'bit32')
+end
+if not bit then
+	result, bit = pcall(require, 'bit')
+end
+
 
 local WebSocketConn = class()
 

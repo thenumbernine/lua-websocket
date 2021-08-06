@@ -2,13 +2,22 @@ local table = require 'ext.table'
 local class = require 'ext.class'
 local socket = require 'socket'
 local mime = require 'mime'
-local bit = bit32 or require 'bit'
 local json = require 'dkjson'
 local ThreadManager = require 'threadmanager'
 local WebSocketConn = require 'websocket.websocketconn'
 local WebSocketHixieConn = require 'websocket.websockethixieconn'
 local AjaxSocketConn = require 'websocket.ajaxsocketconn'
 local digest = require 'websocket.digest'
+
+local result
+local bit = bit32
+if not bit then
+	result, bit = pcall(require, 'bit32')
+end
+if not bit then
+	result, bit = pcall(require, 'bit')
+end
+
 
 -- coroutine function that blocks til it gets something
 local function receiveBlocking(conn, waitduration, secondsTimerFunc)
