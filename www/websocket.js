@@ -9,15 +9,18 @@ ClientConn = makeClass({
 	init : function(args) {
 		if (args.uri !== undefined) this.uri = args.uri;
 		if (this.uri === undefined) throw "expected uri";
-
+		
 		var clientConn = this;
-	
+		
 		//callback on received message
 		this.onMessage = args.onMessage;
 
+		//callback on closed connection
+		this.onClose = args.onClose;
+		
 		//buffer responses until we have a connection
 		this.sendQueue = [];
-	
+		
 		//register implementation classes
 		this.AsyncComm = makeClass();
 
@@ -40,20 +43,23 @@ console.log('websocket onopen', evt);
 				this.ws.onclose = function(evt) {
 console.log('websocket onclose', evt);
 					thiz.connected = false;
+					if (clientConn.onClose) {
+						clientConn.onClose.apply(clientConn, arguments);
+					}
 				};
 				this.ws.onmessage = function(evt) {
 //console.log('websocket onmessage', evt);
 					clientConn.onMessage(evt.data);
 				};
 				this.ws.onerror = function(evt) {
-console.log('websocket onerror', evt);
+console.log('websocket onerror', arguments);
+					throw evt.data;
 				};
 			},
 			send : function(data) {
 				this.ws.send(data);
 			}
 		});
-
 
 		this.AsyncCommAjax = makeClass({
 			//static variable
@@ -157,4 +163,3 @@ console.log('websocket onerror', evt);
 		}
 	}
 });
-
