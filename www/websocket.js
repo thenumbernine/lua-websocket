@@ -9,6 +9,13 @@ ClientConn = makeClass({
 	init : function(args) {
 		if (args.uri !== undefined) this.uri = args.uri;
 		if (this.uri === undefined) throw "expected uri";
+
+		//ok seems firefox has a problem connecting non-wss to https domains ... i guess?
+		if (args.wsProto !== undefined) this.wsProto = args.wsProto;
+		if (this.wsProto === undefined) this.wsProto = 'ws';
+	
+		if (args.ajaxProto !== undefined) this.ajaxProto = args.ajaxProto;
+		if (this.ajaxProto === undefined) this.ajaxProto = 'https';
 		
 		var clientConn = this;
 		
@@ -34,7 +41,7 @@ ClientConn = makeClass({
 			reconnect : function(done) {
 				if (this.connected) return;
 				var thiz = this;
-				this.ws = new WebSocket('ws://'+clientConn.uri);
+				this.ws = new WebSocket(clientConn.wsProto+'://'+clientConn.uri);
 				this.ws.onopen = function(evt) {
 console.log('websocket onopen', evt);
 					thiz.connected = true;
@@ -86,7 +93,7 @@ console.log('websocket onerror', arguments);
 					thiz.sendQueue = [];
 					$.ajax({
 						type : 'POST',
-						url : 'http://'+clientConn.uri,
+						url : clientConn.ajaxProto+'://'+clientConn.uri,
 						data : JSON.stringify(sendQueue),
 						//dataType : 'json',
 						success : function(msgsdata) {
