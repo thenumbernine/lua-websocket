@@ -1,7 +1,7 @@
 WebSocket server for Lua
 uses the following:
 LuaSocket
-LuaCrypto
+LuaCrypto or LuaOSSL
 LuaBitOp
 dkjson
 my Lua ext library

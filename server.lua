@@ -121,6 +121,25 @@ function Server:update()
 			print('got connection!',client)
 			print('connection from', client:getpeername())
 		end
+		--[[ can I do this?
+		-- from https://stackoverflow.com/questions/2833947/stuck-with-luasec-lua-secure-socket
+		-- TODO need to specify cert files
+		-- TODO but if you want to handle both https and non-https on different ports, that means two connections, that means better make non-blocking the default
+		if self.usetls then
+			local ssl = require 'ssl'	-- package luasec
+			assert(client:settimeout(10))
+			client = assert(ssl.wrap(client, {
+				mode = 'server',
+				protocol = 'sslv3',
+				key = 'path/to/server.key',
+				certificate = 'path/to/server.crt',
+				password = '12345',
+				options = {'all', 'no_sslv2'},
+				ciphers = 'ALL:!ADH:@STRENGTH',
+			}))
+			client:dohandshake()
+		end
+		--]]	
 		-- why is this accepting connections twice?
 		-- is the browser really reconnecting, or is luasocket messing up?
 		self.threads:add(self.connectRemoteCoroutine, self, client)
@@ -190,7 +209,7 @@ function Server:traceback(err)
 end
 
 function Server:delay(duration, callback, ...)
-	local args = {...}
+	local args = table.pack(...)
 	local callingTrace = debug.traceback()
 	self.threads:add(function()
 		coroutine.yield()
@@ -202,7 +221,7 @@ function Server:delay(duration, callback, ...)
 			thisTime = self.getTime()
 		until thisTime > endTime
 		xpcall(function()
-			callback(table.unpack(args))
+			callback(args:unpack())
 		end, function(err)
 			io.stderr:write(tostring(err)..'\n')
 			io.stderr:write(debug.traceback())
