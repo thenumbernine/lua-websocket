@@ -55,8 +55,20 @@ console.log('websocket onclose', evt);
 					}
 				};
 				this.ws.onmessage = function(evt) {
-//console.log('websocket onmessage', evt);
-					clientConn.onMessage(evt.data);
+console.log('websocket onmessage', evt);
+					var isblob = evt.data.constructor == Blob;
+					if (isblob) {
+						// blob to text, because javascript is a trash language/API
+						var reader = new FileReader();
+						reader.onload = function(e) {
+							var text = reader.result;
+							clientConn.onMessage(text);
+						};
+						reader.readAsText(evt.data);
+					} else {
+						// text ... I hope
+						clientConn.onMessage(evt.data);
+					}
 				};
 				this.ws.onerror = function(evt) {
 console.log('websocket onerror', arguments);

@@ -16,7 +16,7 @@ local WebSocketConn = class()
 --[[
 args:
 	server
-	socket
+	socket = luasocket
 	received = function(socketimpl, msg) (optional)
 --]]
 function WebSocketConn:init(args)
@@ -97,26 +97,38 @@ function WebSocketConn:readFrameCoroutine()
 			error('readFrameCoroutine got continuation frame')	-- TODO handle continuations
 		elseif opcode == FRAME_TEXT or opcode == FRAME_DATA then	-- new text/binary frame
 			local decoded = self:readFrameCoroutine_DecodeData()
---print('readFrameCoroutine got',decoded)
+			if self.logging then
+				print('readFrameCoroutine got',decoded)
+			end
 			-- now process 'decoded'
 			self.server.threads:add(function()
 				self:received(decoded)
 			end)
 		elseif opcode == FRAME_CLOSE then	-- connection close
---print('readFrameCoroutine got connection close')
+			if self.logging then
+				print('readFrameCoroutine got connection close')
+			end
 			local decoded = self:readFrameCoroutine_DecodeData()
---print('connection closed. reason ('..#decoded..'):',decoded)
+			if self.logging then
+				print('connection closed. reason ('..#decoded..'):',decoded)
+			end
 			self.done = true
 			break
 		elseif opcode == FRAME_PING then -- ping
---print('readFrameCoroutine got ping')
+			if self.logging then
+				print('readFrameCoroutine got ping')
+			end
 		elseif opcode == FRAME_PONG then -- pong
---print('readFrameCoroutine got pong')
+			if self.logging then
+				print('readFrameCoroutine got pong')
+			end
 		else
 			error("got a reserved opcode: "..opcode)
 		end
 	end			
---print('readFrameCoroutine stopped')
+	if self.logging then
+		print('readFrameCoroutine stopped')
+	end
 end
 
 -- private
@@ -149,68 +161,99 @@ function WebSocketConn:listenCoroutine()
 	
 	-- one thread needs responsibility to close ...
 	self:close()
---print('listenCoroutine stopped')
+	if self.logging then
+		print('listenCoroutine stopped')
+	end
 end
 
 -- public 
 function WebSocketConn:send(msg, opcode)
-	if not opcode then opcode = FRAME_TEXT end
-	local codebyte = string.char(bit.bor(0x80, opcode))
+	if not opcode then 
+		opcode = FRAME_TEXT
+		--opcode = FRAME_DATA
+	end
 
 	-- upon sending this to the browser, the browser is sending back 6 chars and then crapping out
 	--	no warnings given.  browser keeps acting like all is cool but it stops actually sending data afterwards. 
---print('send',#msg,msg)
-	if #msg < 126 then
-		local data = codebyte .. string.char(#msg) .. msg
-		assert(#data == 2 + #msg)
+	local nmsg = #msg
+	if self.logging then
+		print('send',nmsg,msg)
+	end
+	if nmsg < 126 then
+		local data = string.char(bit.bor(0x80, opcode))
+			.. string.char(nmsg) 
+			.. msg
+		assert(#data == 2 + nmsg)
 		
 		self.socket:send(data)
-	elseif #msg < 65536 then
-		local data = codebyte .. string.char(126)
-			.. string.char(bit.band(bit.rshift(#msg, 8), 0xff))
-			.. string.char(bit.band(#msg, 0xff))
+	elseif nmsg < 65536 then
+		local data = string.char(bit.bor(0x80, opcode))
+			.. string.char(126)
+			.. string.char(bit.band(bit.rshift(nmsg, 8), 0xff))
+			.. string.char(bit.band(nmsg, 0xff))
 			.. msg
-		assert(#data == 4 + #msg)
+		assert(#data == 4 + nmsg)
 		
 		self.socket:send(data)
 	else
-		-- [[ large frame
-		local data = codebyte .. string.char(127)
-		local size = #msg
-		local sizedata = ''
-		for i=0,7 do
-			sizedata = string.char(bit.band(size, 0xff)) .. sizedata
-			size = bit.rshift(size, 8)
+		-- [[ large frame ... not working?
+		-- this seems to be identical to here: https://stackoverflow.com/questions/8125507/how-can-i-send-and-receive-websocket-messages-on-the-server-side
+		-- but Chrome doesn't seem to receive the frame for size 118434
+		if self.logging then
+			print('sending large websocket frame')
 		end
-		data = data .. sizedata
-		data = data .. msg
-		assert(#data == 10 + #msg)
-		
+		local data = 
+			string.char(bit.bor(0x80, opcode))
+			.. string.char(127)
+			.. string.char(bit.band(0xff, bit.rshift(nmsg, 56)))
+			.. string.char(bit.band(0xff, bit.rshift(nmsg, 48)))
+			.. string.char(bit.band(0xff, bit.rshift(nmsg, 40)))
+			.. string.char(bit.band(0xff, bit.rshift(nmsg, 32)))
+			.. string.char(bit.band(0xff, bit.rshift(nmsg, 24)))
+			.. string.char(bit.band(0xff, bit.rshift(nmsg, 16)))
+			.. string.char(bit.band(0xff, bit.rshift(nmsg, 8)))
+			.. string.char(bit.band(0xff, nmsg))
+			.. msg
+		assert(#data == 10 + nmsg)
 		self.socket:send(data)
 		--]]
-		--[[ multiple frames ... browser doesnt register a frame and complains "must use largest size" ... 
---print('msg size',#msg)
-		for start=1,#msg,65535 do
-			local len = start + 65535
-			if start + len > #msg then len = #msg - start end
-			local data
-			if start + len == #msg then 
-				data = codebyte
-			else 
-				data = string.char(0x80)
+		--[[ multiple fragmented frames 
+		-- ... it looks like the browser is sending the fragment headers to websocket onmessage? along with the frame data?
+print('sending large websocket frame fragmented -- msg size',nmsg)
+		local fragmentsize = 100
+		--local fragmentsize = 1024
+		--local fragmentsize = 65535
+		local fragopcode = opcode
+		for start=0,nmsg,fragmentsize do
+			local len = fragmentsize
+			if start + len > nmsg then len = nmsg - start end
+			local headerbyte = fragopcode
+			if start + len == nmsg then 
+				headerbyte = bit.bor(headerbyte, 0x80)
 			end
+print('sending header '..headerbyte..' len '..len)
+			local data
 			if len < 126 then
-				data = string.char(len) .. msg:sub(start, start+len-1)
+				data = string.char(headerbyte)
+					.. string.char(len) 
+					.. msg:sub(start+1, start+len)
 				assert(#data == 2 + len)
 			else
-				data = data .. string.char(126)
+				assert(len < 65536)
+				data = string.char(headerbyte)
+					.. string.char(126)
 					.. string.char(bit.band(bit.rshift(len, 8), 0xff))
 					.. string.char(bit.band(len, 0xff))
-					.. msg:sub(start, start+len-1)
+					.. msg:sub(start+1, start+len)
 				assert(#data == 4 + len)
 			end
 			self:send(data)
+			fragopcode = 0
 		end
+		--]]
+		--[[ how come when I send fragmented messages, websocket .onmessage receives all the raw data of each of them, header and all?
+		-- will that work if I just send the raw message as is? or does it only act that way when I don't want it to?
+		self:send(msg)
 		--]]
 	end
 end

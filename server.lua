@@ -251,7 +251,7 @@ function Server:connectRemoteCoroutine(client)
 	end
 	if not (firstLine == 'GET / HTTP/1.1' or firstLine == 'POST / HTTP/1.1') then
 		if self.logging then
-			print('got a non-http conn')
+			print('got a non-http conn: '..firstLine)
 		end
 		return
 	end
@@ -353,6 +353,7 @@ function Server:connectRemoteCoroutine(client)
 				socket = client,
 				implClass = WebSocketConn,
 			}
+			serverConn.socketImpl.logging = self.logging
 			if self.logging then
 				print('constructing ServerConn',serverConn,'...')
 			end
