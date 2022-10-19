@@ -118,6 +118,7 @@ function WebSocketConn:readFrameCoroutine()
 			if self.logging then
 				print('readFrameCoroutine got ping')
 			end
+			-- TODO send FRAME_PONG response?
 		elseif opcode == FRAME_PONG then -- pong
 			if self.logging then
 				print('readFrameCoroutine got pong')
