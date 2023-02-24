@@ -1,5 +1,6 @@
 local table = require 'ext.table'
 local class = require 'ext.class'
+local file = require 'ext.file'
 local socket = require 'socket'
 local mime = require 'mime'
 local json = require 'dkjson'
@@ -22,9 +23,9 @@ end
 -- coroutine function that blocks til it gets something
 local function receiveBlocking(conn, waitduration, secondsTimerFunc)
 	coroutine.yield()
-	
+
 	local endtime
-	if waitduration then 
+	if waitduration then
 		endtime = secondsTimerFunc() + waitduration
 	end
 	local data
@@ -57,7 +58,7 @@ local Server = class()
 
 -- used for indexing conns, and mapping the Server.conns table keys
 Server.nextConnUID = 1
-	
+
 -- class for instanciation of connections
 Server.connClass = require 'websocket.simpleconn'
 
@@ -66,6 +67,10 @@ Server.port = 27000
 
 -- TODO log levels
 Server.logging = true
+
+-- default always assume TLS
+-- TODO detect?
+Server.usetls = true
 
 --[[
 args:
@@ -83,7 +88,7 @@ function Server:init(args)
 
 	self.conns = table()
 	self.ajaxConns = table()	-- mapped from sessionID
-	
+
 	self.threads = args.threads
 	if not self.threads then
 		self.threads = ThreadManager()
@@ -94,7 +99,7 @@ function Server:init(args)
 	self.hostname = assert(args.hostname, "expected hostname")
 	if self.logging then
 		print("hostname "..tostring(self.hostname))
-		print("binding to "..tostring(address)..":"..tostring(self.port))	
+		print("binding to "..tostring(address)..":"..tostring(self.port))
 	end
 	self.socket = assert(socket.bind(address, self.port))
 	self.socketaddr, self.socketport = self.socket:getsockname()
@@ -121,30 +126,73 @@ function Server:update()
 			print('got connection!',client)
 			print('connection from', client:getpeername())
 		end
-		--[[ can I do this?
+		-- [[ can I do this?
 		-- from https://stackoverflow.com/questions/2833947/stuck-with-luasec-lua-secure-socket
 		-- TODO need to specify cert files
 		-- TODO but if you want to handle both https and non-https on different ports, that means two connections, that means better make non-blocking the default
 		if self.usetls then
+			if self.logging then
+				print(self.getTime(),'upgrading to ssl...')
+			end
 			local ssl = require 'ssl'	-- package luasec
+			-- TODO instead, just ask whoever is launching the server
+			assert(self.hostname, "need the hostname to find the certs")
+			local keyfile = '/etc/letsencrypt/live/'..self.hostname..'/privkey.pem'
+			local certfile = '/etc/letsencrypt/live/'..self.hostname..'/cert.pem'
+			assert(file(keyfile):exists())
+			assert(file(certfile):exists())
+			-- TODO hmmm 10 second block ...
 			assert(client:settimeout(10))
-			client = assert(ssl.wrap(client, {
+			local err
+			client, err = assert(ssl.wrap(client, {
 				mode = 'server',
-				protocol = 'sslv3',
-				key = 'path/to/server.key',
-				certificate = 'path/to/server.crt',
+				--options = {'all', 'no_sslv2'},
+				--protocol = 'sslv3',	-- invalid protocol (sslv3)
+				--options = {'all', 'no_sslv2'},
+				-- protocol = nil,	-- /usr/local/share/lua/5.3/ssl.lua:72: bad argument #1 to 'create' (string expected, got nil)
+				options = {'all'},
+				--protocol = 'tlsv1',
+				protocol = 'any',
+				--protocol = 'sslv2',	-- invalid protocol (sslv2)
+				-- luasec 0.6:
+				-- following: https://github.com/brunoos/luasec/blob/master/src/https.lua
+				--protocol = 'all',
+				--options = {'all', 'no_sslv2', 'no_sslv3', 'no_tlsv1'},
+				key = keyfile,			--key = 'path/to/server.key',
+				certificate = certfile,	--certificate = 'path/to/server.crt',
 				password = '12345',
-				options = {'all', 'no_sslv2'},
 				ciphers = 'ALL:!ADH:@STRENGTH',
 			}))
-			client:dohandshake()
+			if self.logging then
+				print(self.getTime(),'ssl.wrap response:', err)
+				print(self.getTime(),'doing handshake...')
+			end
+			-- from https://github-wiki-see.page/m/brunoos/luasec/wiki/LuaSec-1.0.x
+			-- TODO risk of runaway loop?
+			-- do this on the thread? and yield between?
+			local succ,msg
+			while not succ do
+				succ, msg = client:dohandshake()
+				if self.logging then
+					print(self.getTime(), 'dohandshake', succ, msg)
+				end
+				if msg == 'wantread' then
+					socket.select({client}, nil)
+				end
+			end
+			if self.logging then
+				print(self.getTime(), "dohandshake finished")
+			end
 		end
-		--]]	
+		--]]
 		-- why is this accepting connections twice?
 		-- is the browser really reconnecting, or is luasocket messing up?
+		if self.logging then
+			print(self.getTime(),'spawning new thread...')
+		end
 		self.threads:add(self.connectRemoteCoroutine, self, client)
 	end
-	
+
 	-- now handle connections
 	for i,conn in pairs(self.conns) do
 		if not conn:isActive() then
@@ -163,7 +211,7 @@ function Server:update()
 					print(self.getTime(),'removing websocket conn')
 				end
 			end
-			self.conns[i] = nil	
+			self.conns[i] = nil
 		else
 			if conn.update then
 				conn:update()
@@ -204,7 +252,7 @@ function Server:traceback(err)
 		io.stderr:write(tostring(thread)..'\n')
 		io.stderr:write(debug.traceback(thread)..'\n')
 	end
-	
+
 	io.stderr:flush()
 end
 
@@ -214,7 +262,7 @@ function Server:delay(duration, callback, ...)
 	self.threads:add(function()
 		coroutine.yield()
 		local thisTime = self.getTime()
-		local startTime = thisTime 
+		local startTime = thisTime
 		local endTime = thisTime + duration
 		repeat
 			coroutine.yield()
@@ -241,8 +289,14 @@ end
 
 -- create a remote connection
 function Server:connectRemoteCoroutine(client)
-	client:settimeout(0, 'b')	-- for the benefit of coroutines ...
-	client:setoption('keepalive', true)
+	-- hmm i guess doesn't work for ssl.wrap connections so i'll do it before
+	if not self.usetls then
+		client:setoption('keepalive', true)
+		client:settimeout(0, 'b')	-- for the benefit of coroutines ...
+	else
+		-- TODO this is a bad fix cuz without constant traffic one client can lag all (right?)
+		client:settimeout(10)
+	end
 
 	-- chrome has a bug where it connects and asks for a favicon even if there is none, or something, idk ...
 	local firstLine, reason = receiveBlocking(client, 5, self.getTime)
@@ -251,11 +305,11 @@ function Server:connectRemoteCoroutine(client)
 	end
 	if not (firstLine == 'GET / HTTP/1.1' or firstLine == 'POST / HTTP/1.1') then
 		if self.logging then
-			print('got a non-http conn: '..firstLine)
+			print(self.getTime(),'got a non-http conn: ',firstLine)
 		end
 		return
 	end
-	
+
 	local header = table()
 	while true do
 		local recv = mustReceiveBlocking(client, 1, self.getTime)
@@ -271,7 +325,7 @@ function Server:connectRemoteCoroutine(client)
 
 	local cookies = table()
 	if header.cookie then
-		for kv in header.cookie:gmatch('(.-);%s?') do 
+		for kv in header.cookie:gmatch('(.-);%s?') do
 			local k,v = kv:match('(.-)=(.*)')
 			cookies[k] = v
 		end
@@ -280,24 +334,24 @@ function Server:connectRemoteCoroutine(client)
 	-- handle websockets
 	-- IE doesn't give back an 'upgrade'
 	if header.upgrade and header.upgrade:lower() == 'websocket' then
-	
+
 		local key1 = header['sec-websocket-key1']
 		local key2 = header['sec-websocket-key2']
 		if key1 and key2 then
 			-- Hixie websockets
-			-- http://www.whatwg.org/specs/web-socket-protocol/ 
+			-- http://www.whatwg.org/specs/web-socket-protocol/
 			local spaces1 = select(2, key1:gsub(' ', ''))
 			local spaces2 = select(2, key2:gsub(' ', ''))
 			local digits1 = assert(tonumber((key1:gsub('%D', '')))) / spaces1
 			local digits2 = assert(tonumber((key2:gsub('%D', '')))) / spaces2
-			
+
 			local body, err, partial = client:receive(tonumber(header['content-length']) or '*a')
 			body = body or partial
 			if self.logging then
 				print(self.getTime(),client,'>>',body)
 			end
 			assert(#body == 8)
-		
+
 			local response = digest('md5', be32ToStr(digits1) .. be32ToStr(digits2) .. body, true)
 
 			for _,line in ipairs{
@@ -325,12 +379,12 @@ function Server:connectRemoteCoroutine(client)
 			return
 		else
 			-- RFC websockets
-			
+
 			local key = header['sec-websocket-key']
 			local magic = key .. '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
 			local sha1response = digest('sha1', magic, true)
 			local response = mime.b64(sha1response)
-			
+
 			for _,line in ipairs{
 				'HTTP/1.1 101 Switching Protocols\r\n',
 				'Upgrade: websocket\r\n',
@@ -365,7 +419,7 @@ function Server:connectRemoteCoroutine(client)
 
 	-- handle ajax connections
 
-	local serverConn 
+	local serverConn
 
 	local body, err, partial = client:receive(tonumber(header['content-length']) or '*a')
 	body = body or partial
@@ -429,11 +483,11 @@ function Server:connectRemoteCoroutine(client)
 		table.insert(responseQueue, 1, 'sessionID '..sessionID)
 	end
 	local response = json.encode(responseQueue)
-	
+
 	if self.logging then
 		print('sending ajax response size',#response,'body',response)
 	end
-	
+
 	-- send response header
 	local lines = table()
 	lines:insert('HTTP/1.1 200 OK\r\n')
@@ -444,14 +498,14 @@ function Server:connectRemoteCoroutine(client)
 	lines:insert('Connection: close\r\n')		-- IE needs this
 	lines:insert('\r\n')
 	lines:insert(response..'\r\n')
-	
+
 	for _,line in ipairs(lines) do
 		if self.logging then
 			print(client,'<<'..line:match('^(.*)\r\n$'))
 		end
 		client:send(line)
 	end
-	
+
 	client:close()
 end
 

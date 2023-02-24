@@ -16,21 +16,21 @@ ClientConn = makeClass({
 		// default is wss
 		if (args.wsProto !== undefined) this.wsProto = args.wsProto;
 		if (this.wsProto === undefined) this.wsProto = 'wss';
-	
+
 		if (args.ajaxProto !== undefined) this.ajaxProto = args.ajaxProto;
 		if (this.ajaxProto === undefined) this.ajaxProto = 'https';
-		
+
 		var clientConn = this;
-		
+
 		//callback on received message
 		this.onMessage = args.onMessage;
 
 		//callback on closed connection
 		this.onClose = args.onClose;
-		
+
 		//buffer responses until we have a connection
 		this.sendQueue = [];
-		
+
 		//register implementation classes
 		this.AsyncComm = makeClass();
 
@@ -51,7 +51,8 @@ ClientConn = makeClass({
 					if (done) done();
 				};
 				this.ws.onclose = function(evt) {
-//console.log('websocket onclose', evt);
+console.log('websocket onclose', evt);
+console.log('error code', evt.code);
 					thiz.connected = false;
 					if (clientConn.onClose) {
 						clientConn.onClose.apply(clientConn, arguments);
@@ -75,6 +76,9 @@ ClientConn = makeClass({
 				};
 				this.ws.onerror = function(evt) {
 console.log('websocket onerror', arguments);
+// https://stackoverflow.com/questions/18803971/websocket-onerror-how-to-read-error-description
+// optimistic but not standard .... and not showing up on chrome desktop
+//console.log('error code', evt.code);
 					throw evt;
 				};
 			},
@@ -86,7 +90,7 @@ console.log('websocket onerror', arguments);
 		this.AsyncCommAjax = makeClass({
 			//static variable
 			sessionID : undefined,
-			
+
 			name : 'AsyncCommAjax',
 			super : clientConn.AsyncComm,
 			init : function(done) {
@@ -147,10 +151,10 @@ console.log('websocket onerror', arguments);
 			}
 		});
 	},
-	
+
 	connect : function(done) {
 		this.impl = undefined;
-		
+
 		//first try websockets ...
 		//mind you, the server only handles the RFC websockets
 		var classes = [
