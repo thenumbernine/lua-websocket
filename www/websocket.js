@@ -11,8 +11,11 @@ ClientConn = makeClass({
 		if (this.uri === undefined) throw "expected uri";
 
 		//ok seems firefox has a problem connecting non-wss to https domains ... i guess?
+		// or is that the new standard now?
+		// either way since I've switched to https only (and so many others have too ...)
+		// default is wss
 		if (args.wsProto !== undefined) this.wsProto = args.wsProto;
-		if (this.wsProto === undefined) this.wsProto = 'ws';
+		if (this.wsProto === undefined) this.wsProto = 'wss';
 	
 		if (args.ajaxProto !== undefined) this.ajaxProto = args.ajaxProto;
 		if (this.ajaxProto === undefined) this.ajaxProto = 'https';
@@ -43,19 +46,19 @@ ClientConn = makeClass({
 				var thiz = this;
 				this.ws = new WebSocket(clientConn.wsProto+'://'+clientConn.uri);
 				this.ws.onopen = function(evt) {
-console.log('websocket onopen', evt);
+//console.log('websocket onopen', evt);
 					thiz.connected = true;
 					if (done) done();
 				};
 				this.ws.onclose = function(evt) {
-console.log('websocket onclose', evt);
+//console.log('websocket onclose', evt);
 					thiz.connected = false;
 					if (clientConn.onClose) {
 						clientConn.onClose.apply(clientConn, arguments);
 					}
 				};
 				this.ws.onmessage = function(evt) {
-console.log('websocket onmessage', evt);
+//console.log('websocket onmessage', evt);
 					var isblob = evt.data.constructor == Blob;
 					if (isblob) {
 						// blob to text, because javascript is a trash language/API
@@ -72,7 +75,7 @@ console.log('websocket onmessage', evt);
 				};
 				this.ws.onerror = function(evt) {
 console.log('websocket onerror', arguments);
-					throw evt.data;
+					throw evt;
 				};
 			},
 			send : function(data) {
