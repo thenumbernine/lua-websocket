@@ -254,7 +254,7 @@ function Server:connectRemoteCoroutine(client)
 		assert(file(keyfile):exists())
 		assert(file(certfile):exists())
 		-- TODO hmmm 10 second block ...
-		assert(client:settimeout(10))
+		assert(client:settimeout(0))
 		local err
 		client, err = assert(ssl.wrap(client, {
 			mode = 'server',

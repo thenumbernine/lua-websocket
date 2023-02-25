@@ -147,7 +147,10 @@ function WebSocketConn:listenCoroutine()
 				error(err..'\n'..debug.traceback(self.readFrameThread))
 			end
 		else
-			if reason == 'timeout' then
+			if reason == 'wantread' then
+				-- luasec case
+				socket.select({self.socket}, nil)
+			elseif reason == 'timeout' then
 			elseif reason == 'closed' then
 				self.done = true
 				break
