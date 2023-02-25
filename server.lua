@@ -34,12 +34,16 @@ local function receiveBlocking(conn, waitduration, secondsTimerFunc)
 		local reason
 		data, reason = conn:receive('*l')
 		if not data then
-			if reason ~= 'timeout' then
-				return nil, reason		-- error() ?
-			end
-			-- else continue
-			if waitduration and secondsTimerFunc() > endtime then
-				return nil, 'timeout'
+			if reason == 'wantread' then
+				socket.select({conn}, nil)
+			else
+				if reason ~= 'timeout' then
+					return nil, reason		-- error() ?
+				end
+				-- else continue
+				if waitduration and secondsTimerFunc() > endtime then
+					return nil, 'timeout'
+				end
 			end
 		end
 	until data ~= nil
@@ -126,67 +130,6 @@ function Server:update()
 			print('got connection!',client)
 			print('connection from', client:getpeername())
 		end
-		-- [[ can I do this?
-		-- from https://stackoverflow.com/questions/2833947/stuck-with-luasec-lua-secure-socket
-		-- TODO need to specify cert files
-		-- TODO but if you want to handle both https and non-https on different ports, that means two connections, that means better make non-blocking the default
-		if self.usetls then
-			if self.logging then
-				print(self.getTime(),'upgrading to ssl...')
-			end
-			local ssl = require 'ssl'	-- package luasec
-			-- TODO instead, just ask whoever is launching the server
-			assert(self.hostname, "need the hostname to find the certs")
-			local keyfile = '/etc/letsencrypt/live/'..self.hostname..'/privkey.pem'
-			local certfile = '/etc/letsencrypt/live/'..self.hostname..'/cert.pem'
-			assert(file(keyfile):exists())
-			assert(file(certfile):exists())
-			-- TODO hmmm 10 second block ...
-			assert(client:settimeout(10))
-			local err
-			client, err = assert(ssl.wrap(client, {
-				mode = 'server',
-				--options = {'all', 'no_sslv2'},
-				--protocol = 'sslv3',	-- invalid protocol (sslv3)
-				--options = {'all', 'no_sslv2'},
-				-- protocol = nil,	-- /usr/local/share/lua/5.3/ssl.lua:72: bad argument #1 to 'create' (string expected, got nil)
-				options = {'all'},
-				--protocol = 'tlsv1',
-				protocol = 'any',
-				--protocol = 'sslv2',	-- invalid protocol (sslv2)
-				-- luasec 0.6:
-				-- following: https://github.com/brunoos/luasec/blob/master/src/https.lua
-				--protocol = 'all',
-				--options = {'all', 'no_sslv2', 'no_sslv3', 'no_tlsv1'},
-				key = keyfile,			--key = 'path/to/server.key',
-				certificate = certfile,	--certificate = 'path/to/server.crt',
-				password = '12345',
-				ciphers = 'ALL:!ADH:@STRENGTH',
-			}))
-			if self.logging then
-				print(self.getTime(),'ssl.wrap response:', err)
-				print(self.getTime(),'doing handshake...')
-			end
-			-- from https://github-wiki-see.page/m/brunoos/luasec/wiki/LuaSec-1.0.x
-			-- TODO risk of runaway loop?
-			-- do this on the thread? and yield between?
-			local succ,msg
-			while not succ do
-				succ, msg = client:dohandshake()
-				if self.logging then
-					print(self.getTime(), 'dohandshake', succ, msg)
-				end
-				if msg == 'wantread' then
-					socket.select({client}, nil)
-				end
-			end
-			if self.logging then
-				print(self.getTime(), "dohandshake finished")
-			end
-		end
-		--]]
-		-- why is this accepting connections twice?
-		-- is the browser really reconnecting, or is luasocket messing up?
 		if self.logging then
 			print(self.getTime(),'spawning new thread...')
 		end
@@ -289,14 +232,70 @@ end
 
 -- create a remote connection
 function Server:connectRemoteCoroutine(client)
-	-- hmm i guess doesn't work for ssl.wrap connections so i'll do it before
-	if not self.usetls then
+	
+	-- TODO all of this should be in the client handle coroutine
+	-- [[ can I do this?
+	-- from https://stackoverflow.com/questions/2833947/stuck-with-luasec-lua-secure-socket
+	-- TODO need to specify cert files
+	-- TODO but if you want to handle both https and non-https on different ports, that means two connections, that means better make non-blocking the default
+	if self.usetls then
+		if self.logging then
+			print(self.getTime(),'upgrading to ssl...')
+		end
+		local ssl = require 'ssl'	-- package luasec
+		-- TODO instead, just ask whoever is launching the server
+		assert(self.hostname, "need the hostname to find the certs")
+		local keyfile = '/etc/letsencrypt/live/'..self.hostname..'/privkey.pem'
+		local certfile = '/etc/letsencrypt/live/'..self.hostname..'/cert.pem'
+		if self.logging then
+			print(self.getTime(), 'keyfile', keyfile, 'exists', file(keyfile):exists())
+			print(self.getTime(), 'certfile', certfile, 'exists', file(certfile):exists())
+		end
+		assert(file(keyfile):exists())
+		assert(file(certfile):exists())
+		-- TODO hmmm 10 second block ...
+		assert(client:settimeout(10))
+		local err
+		client, err = assert(ssl.wrap(client, {
+			mode = 'server',
+			options = {'all'},
+			protocol = 'any',
+			-- luasec 0.6:
+			-- following: https://github.com/brunoos/luasec/blob/master/src/https.lua
+			--protocol = 'all',
+			--options = {'all', 'no_sslv2', 'no_sslv3', 'no_tlsv1'},
+			key = keyfile,
+			certificate = certfile,
+			password = '12345',
+			ciphers = 'ALL:!ADH:@STRENGTH',
+		}))
+		if self.logging then
+			print(self.getTime(),'ssl.wrap response:', err)
+			print(self.getTime(),'doing handshake...')
+		end
+		-- from https://github-wiki-see.page/m/brunoos/luasec/wiki/LuaSec-1.0.x
+		-- also goes in receiveBlocking for conn:receive
+		local result,reason
+		while not result do
+			coroutine.yield()
+			result, reason = client:dohandshake()
+			if self.logging then
+				print(self.getTime(), 'dohandshake', result, reason)
+			end
+			if reason == 'wantread' then
+				socket.select({client}, nil)
+			end
+			if reason == 'unknown state' then error('handshake conn in unknown state') end
+		end
+		if self.logging then
+			print(self.getTime(), "dohandshake finished")
+		end
+	else
+		-- hmm i guess this doesn't work for ssl.wrap connections (these is no setoption method) 
 		client:setoption('keepalive', true)
 		client:settimeout(0, 'b')	-- for the benefit of coroutines ...
-	else
-		-- TODO this is a bad fix cuz without constant traffic one client can lag all (right?)
-		client:settimeout(10)
 	end
+	--]]
 
 	-- chrome has a bug where it connects and asks for a favicon even if there is none, or something, idk ...
 	local firstLine, reason = receiveBlocking(client, 5, self.getTime)
