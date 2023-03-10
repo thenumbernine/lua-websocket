@@ -85,10 +85,14 @@ args:
 	address (default is *)
 	port (default is 27000)
 	getTime (optional) = fraction-of-seconds-accurate timer function.  default requires either FFI or an external C binding or os.clock ... or you can provide your own.
+	usetls = override default usetls==true
 --]]
 function Server:init(args)
 	args = args or {}
 	self.port = args.port
+	if args.usetls ~= nil then
+		self.usetls = args.usetls
+	end
 
 	self.getTime = args.getTime or require 'websocket.gettimeofday'
 
