@@ -36,7 +36,7 @@ local function receiveBlocking(conn, waitduration, secondsTimerFunc)
 		if not data then
 			if reason == 'wantread' then
 				print('got wantread, calling select...')
-				socket.select({conn}, nil)
+				socket.select(nil, {conn})
 				print('...done calling select')
 			else
 				if reason ~= 'timeout' then
@@ -264,8 +264,6 @@ function Server:connectRemoteCoroutine(client)
 		end
 		assert(file(keyfile):exists())
 		assert(file(certfile):exists())
-		assert(client:settimeout(0, 'b'))
-		client:setkeepalive()
 		local err
 		client, err = assert(ssl.wrap(client, {
 			mode = 'server',
@@ -280,6 +278,9 @@ function Server:connectRemoteCoroutine(client)
 			password = '12345',
 			ciphers = 'ALL:!ADH:@STRENGTH',
 		}))
+		assert(client:settimeout(0, 'b'))
+		--client:setkeepalive()				-- nope
+		--client:setoption('keepalive', true)	-- nope
 		if self.logging then
 			print(self.getTime(),'ssl.wrap response:', err)
 			print(self.getTime(),'doing handshake...')
@@ -295,7 +296,7 @@ function Server:connectRemoteCoroutine(client)
 			end
 			if reason == 'wantread' then
 				print('got wantread, calling select...')
-				socket.select({client}, nil)
+				socket.select(nil, {client})
 				print('...done calling select')
 			end
 			if reason == 'unknown state' then error('handshake conn in unknown state') end

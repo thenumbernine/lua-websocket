@@ -1,5 +1,6 @@
 local table = require 'ext.table'
 local class = require 'ext.class'
+local socket = require 'socket'
 
 local result
 local bit = bit32
@@ -149,7 +150,7 @@ function WebSocketConn:listenCoroutine()
 		else
 			if reason == 'wantread' then
 				-- luasec case
-				socket.select({self.socket}, nil)
+				socket.select(nil, {self.socket})
 			elseif reason == 'timeout' then
 			elseif reason == 'closed' then
 				self.done = true
