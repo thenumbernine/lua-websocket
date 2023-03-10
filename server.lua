@@ -239,6 +239,11 @@ end
 -- create a remote connection
 function Server:connectRemoteCoroutine(client)
 	
+	-- do I have to do this for the tls before wrapping the tls?
+	-- or can I only do this in the non-tls branch?
+	client:setoption('keepalive', true)
+	client:settimeout(0, 'b')	-- for the benefit of coroutines ...
+	
 	-- TODO all of this should be in the client handle coroutine
 	-- [[ can I do this?
 	-- from https://stackoverflow.com/questions/2833947/stuck-with-luasec-lua-secure-socket
@@ -260,6 +265,7 @@ function Server:connectRemoteCoroutine(client)
 		assert(file(keyfile):exists())
 		assert(file(certfile):exists())
 		assert(client:settimeout(0, 'b'))
+		client:setkeepalive()
 		local err
 		client, err = assert(ssl.wrap(client, {
 			mode = 'server',
@@ -297,11 +303,6 @@ function Server:connectRemoteCoroutine(client)
 		if self.logging then
 			print(self.getTime(), "dohandshake finished")
 		end
-		client:setkeepalive()
-	else
-		-- hmm i guess this doesn't work for ssl.wrap connections (these is no setoption method) 
-		client:setoption('keepalive', true)
-		client:settimeout(0, 'b')	-- for the benefit of coroutines ...
 	end
 	--]]
 
