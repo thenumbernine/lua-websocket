@@ -35,7 +35,9 @@ local function receiveBlocking(conn, waitduration, secondsTimerFunc)
 		data, reason = conn:receive('*l')
 		if not data then
 			if reason == 'wantread' then
+				print('got wantread, calling select...')
 				socket.select({conn}, nil)
+				print('...done calling select')
 			else
 				if reason ~= 'timeout' then
 					return nil, reason		-- error() ?
@@ -253,8 +255,7 @@ function Server:connectRemoteCoroutine(client)
 		end
 		assert(file(keyfile):exists())
 		assert(file(certfile):exists())
-		-- TODO hmmm 10 second block ...
-		assert(client:settimeout(0))
+		assert(client:settimeout(0, 'b'))
 		local err
 		client, err = assert(ssl.wrap(client, {
 			mode = 'server',
@@ -283,13 +284,16 @@ function Server:connectRemoteCoroutine(client)
 				print(self.getTime(), 'dohandshake', result, reason)
 			end
 			if reason == 'wantread' then
+				print('got wantread, calling select...')
 				socket.select({client}, nil)
+				print('...done calling select')
 			end
 			if reason == 'unknown state' then error('handshake conn in unknown state') end
 		end
 		if self.logging then
 			print(self.getTime(), "dohandshake finished")
 		end
+		client:setkeepalive()
 	else
 		-- hmm i guess this doesn't work for ssl.wrap connections (these is no setoption method) 
 		client:setoption('keepalive', true)
