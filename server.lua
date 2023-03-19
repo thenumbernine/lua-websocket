@@ -292,7 +292,8 @@ function Server:connectRemoteCoroutine(client)
 			coroutine.yield()
 			result, reason = client:dohandshake()
 			if self.logging then
-				print(self.getTime(), 'dohandshake', result, reason)
+-- there can be a lot of these ...
+--print(self.getTime(), 'dohandshake', result, reason)
 			end
 			if reason == 'wantread' then
 --print('got wantread, calling select...')
