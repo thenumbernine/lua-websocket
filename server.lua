@@ -35,9 +35,9 @@ local function receiveBlocking(conn, waitduration, secondsTimerFunc)
 		data, reason = conn:receive('*l')
 		if not data then
 			if reason == 'wantread' then
-				print('got wantread, calling select...')
+--print('got wantread, calling select...')
 				socket.select(nil, {conn})
-				print('...done calling select')
+--print('...done calling select')
 			else
 				if reason ~= 'timeout' then
 					return nil, reason		-- error() ?
@@ -295,9 +295,9 @@ function Server:connectRemoteCoroutine(client)
 				print(self.getTime(), 'dohandshake', result, reason)
 			end
 			if reason == 'wantread' then
-				print('got wantread, calling select...')
+--print('got wantread, calling select...')
 				socket.select(nil, {client})
-				print('...done calling select')
+--print('...done calling select')
 			end
 			if reason == 'unknown state' then error('handshake conn in unknown state') end
 		end

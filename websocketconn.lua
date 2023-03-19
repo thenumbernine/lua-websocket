@@ -150,7 +150,9 @@ function WebSocketConn:listenCoroutine()
 		else
 			if reason == 'wantread' then
 				-- luasec case
+--print('got wantread, calling select...')
 				socket.select(nil, {self.socket})
+--print('...done calling select')
 			elseif reason == 'timeout' then
 			elseif reason == 'closed' then
 				self.done = true
