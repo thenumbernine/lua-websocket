@@ -390,8 +390,6 @@ function Server:connectRemoteCoroutine(client)
 				server = self,
 				socket = client,
 				implClass = WebSocketHixieConn,
-				sizeLimitBeforeFragmenting = self.sizeLimitBeforeFragmenting,
-				fragmentSize = self.fragmentSize,
 			}
 			self.lastActiveConnTime = self.getTime()
 			return
@@ -424,6 +422,8 @@ function Server:connectRemoteCoroutine(client)
 				server = self,
 				socket = client,
 				implClass = WebSocketConn,
+				sizeLimitBeforeFragmenting = self.sizeLimitBeforeFragmenting,
+				fragmentSize = self.fragmentSize,
 			}
 			serverConn.socketImpl.logging = self.logging
 			if self.logging then
