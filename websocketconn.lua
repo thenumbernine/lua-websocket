@@ -1,5 +1,6 @@
 local table = require 'ext.table'
 local class = require 'ext.class'
+local coroutine = require 'ext.coroutine'
 local socket = require 'socket'
 
 local result
@@ -30,7 +31,7 @@ function WebSocketConn:init(args)
 	
 	self.listenThread = self.server.threads:add(self.listenCoroutine, self)
 	self.readFrameThread = coroutine.create(self.readFrameCoroutine)	-- not part of the thread pool -- yielded manually with the next read byte
-	coroutine.resume(self.readFrameThread, self)						-- position us to wait for the first byte
+	coroutine.assertresume(self.readFrameThread, self)						-- position us to wait for the first byte
 end
 
 -- public
@@ -145,10 +146,7 @@ function WebSocketConn:listenCoroutine()
 	do
 		local b, reason = self.socket:receive(1)
 		if b then
-			local res, err = coroutine.resume(self.readFrameThread, b:byte())
-			if not res then
-				error(err..'\n'..debug.traceback(self.readFrameThread))
-			end
+			coroutine.assertresume(self.readFrameThread, b:byte())
 		else
 			if reason == 'wantread' then
 				-- luasec case
