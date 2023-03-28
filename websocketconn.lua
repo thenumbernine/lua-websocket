@@ -215,9 +215,9 @@ function WebSocketConn:send(msg, opcode)
 			if start + len == nmsg then
 				headerbyte = bit.bor(headerbyte, 0x80)
 			end
-			if self.logging then
-				print('sending header '..headerbyte..' len '..len)
-			end
+			--if self.logging then
+			--	print('sending header '..headerbyte..' len '..len)
+			--end
 			local data
 			if len < 126 then
 				data = string.char(
