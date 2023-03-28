@@ -14,6 +14,8 @@ end
 
 local WebSocketConn = class()
 
+WebSocketConn.sizeLimitBeforeFragmenting = math.huge
+
 --[[
 args:
 	server
@@ -202,12 +204,13 @@ function WebSocketConn:send(msg, opcode)
 		assert(#data == 4 + nmsg)
 		
 		self.socket:send(data)
-	else
+	-- TODO an option for fragmenting into larger-than-64k pieces?
+	elseif nmsg < self.sizeLimitBeforeFragmenting then
 		-- [[ large frame ... not working?
 		-- this seems to be identical to here: https://stackoverflow.com/questions/8125507/how-can-i-send-and-receive-websocket-messages-on-the-server-side
 		-- but Chrome doesn't seem to receive the frame for size 118434
 		if self.logging then
-			print('sending large websocket frame')
+			print('sending large websocket frame of size', nmsg)
 		end
 		local data = 
 			string.char(bit.bor(0x80, opcode))
@@ -224,9 +227,12 @@ function WebSocketConn:send(msg, opcode)
 		assert(#data == 10 + nmsg)
 		self.socket:send(data)
 		--]]
-		--[[ multiple fragmented frames 
+	else
+		-- [[ multiple fragmented frames 
 		-- ... it looks like the browser is sending the fragment headers to websocket onmessage? along with the frame data?
-print('sending large websocket frame fragmented -- msg size',nmsg)
+		if self.logging then
+			print('sending large websocket frame fragmented -- msg size',nmsg)
+		end
 		local fragmentsize = 100
 		--local fragmentsize = 1024
 		--local fragmentsize = 65535
@@ -238,7 +244,9 @@ print('sending large websocket frame fragmented -- msg size',nmsg)
 			if start + len == nmsg then 
 				headerbyte = bit.bor(headerbyte, 0x80)
 			end
-print('sending header '..headerbyte..' len '..len)
+			if self.logging then
+				print('sending header '..headerbyte..' len '..len)
+			end
 			local data
 			if len < 126 then
 				data = string.char(headerbyte)
