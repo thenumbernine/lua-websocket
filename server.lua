@@ -78,6 +78,9 @@ Server.logging = true
 -- TODO detect?
 Server.usetls = true
 
+-- websocket size limit before fragmentation.  default = nil = use websocketconn class limit = infinite
+Server.sizeLimitBeforeFragmenting = nil
+
 --[[
 args:
 	hostname - to be sent back via socket header
@@ -384,6 +387,7 @@ function Server:connectRemoteCoroutine(client)
 				server = self,
 				socket = client,
 				implClass = WebSocketHixieConn,
+				sizeLimitBeforeFragmenting = self.sizeLimitBeforeFragmenting,
 			}
 			self.lastActiveConnTime = self.getTime()
 			return

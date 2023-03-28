@@ -22,12 +22,14 @@ args:
 	server
 	socket = luasocket
 	received = function(socketimpl, msg) (optional)
+	sizeLimitBeforeFragmenting (optional)
 --]]
 function WebSocketConn:init(args)
 	local sock = assert(args.socket)
 	self.server = assert(args.server)
 	self.socket = sock
 	self.received = args.received
+	self.sizeLimitBeforeFragmenting = args.sizeLimitBeforeFragmenting 
 	
 	self.listenThread = self.server.threads:add(self.listenCoroutine, self)
 	self.readFrameThread = coroutine.create(self.readFrameCoroutine)	-- not part of the thread pool -- yielded manually with the next read byte
@@ -193,17 +195,8 @@ function WebSocketConn:send(msg, opcode)
 		assert(#data == 2 + nmsg)
 		
 		self.socket:send(data)
-	elseif nmsg < 65536 then
-		local data = string.char(bit.bor(0x80, opcode))
-			.. string.char(126)
-			.. string.char(bit.band(bit.rshift(nmsg, 8), 0xff))
-			.. string.char(bit.band(nmsg, 0xff))
-			.. msg
-		assert(#data == 4 + nmsg)
-		
-		self.socket:send(data)
-	-- TODO an option for fragmenting into larger-than-64k pieces?
-	elseif nmsg < self.sizeLimitBeforeFragmenting then
+	
+	elseif nmsg >= self.sizeLimitBeforeFragmenting then
 		-- [[ large frame ... not working?
 		-- this seems to be identical to here: https://stackoverflow.com/questions/8125507/how-can-i-send-and-receive-websocket-messages-on-the-server-side
 		-- but Chrome doesn't seem to receive the frame for size 118434
@@ -225,6 +218,16 @@ function WebSocketConn:send(msg, opcode)
 		assert(#data == 10 + nmsg)
 		self.socket:send(data)
 		--]]
+
+	elseif nmsg < 65536 then
+		local data = string.char(bit.bor(0x80, opcode))
+			.. string.char(126)
+			.. string.char(bit.band(bit.rshift(nmsg, 8), 0xff))
+			.. string.char(bit.band(nmsg, 0xff))
+			.. msg
+		assert(#data == 4 + nmsg)
+		
+		self.socket:send(data)
 	else
 		-- [[ multiple fragmented frames 
 		-- ... it looks like the browser is sending the fragment headers to websocket onmessage? along with the frame data?
@@ -235,7 +238,7 @@ function WebSocketConn:send(msg, opcode)
 		--local fragmentsize = 1024
 		--local fragmentsize = 65535
 		local fragopcode = opcode
-		for start=0,nmsg,fragmentsize do
+		for start=0,nmsg-1,fragmentsize do
 			local len = fragmentsize
 			if start + len > nmsg then len = nmsg - start end
 			local headerbyte = fragopcode
