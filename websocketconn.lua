@@ -194,8 +194,9 @@ function WebSocketConn:send(msg, opcode)
 		print('send',nmsg,msg)
 	end
 	if nmsg < 126 then
-		local data = string.char(bit.bor(0x80, opcode))
-			.. string.char(nmsg)
+		local data = string.char(
+			bit.bor(0x80, opcode),
+			nmsg)
 			.. msg
 		assert(#data == 2 + nmsg)
 
@@ -219,33 +220,33 @@ function WebSocketConn:send(msg, opcode)
 			end
 			local data
 			if len < 126 then
-				data = string.char(headerbyte)
-					.. string.char(len)
+				data = string.char(
+					headerbyte,
+					len)
 					.. msg:sub(start+1, start+len)
 				assert(#data == 2 + len)
+				self.socket:send(data)
 			else
 				assert(len < 65536)
-				data = string.char(headerbyte)
-					.. string.char(126)
-					.. string.char(bit.band(bit.rshift(len, 8), 0xff))
-					.. string.char(bit.band(len, 0xff))
+				data = string.char(
+					headerbyte,
+					126,
+					bit.band(bit.rshift(len, 8), 0xff),
+					bit.band(len, 0xff))
 					.. msg:sub(start+1, start+len)
 				assert(#data == 4 + len)
+				self.socket:send(data)
 			end
-			self:send(data)
 			fragopcode = 0
 		end
 		--]]
-		--[[ how come when I send fragmented messages, websocket .onmessage receives all the raw data of each of them, header and all?
-		-- will that work if I just send the raw message as is? or does it only act that way when I don't want it to?
-		self:send(msg)
-		--]]
 
 	elseif nmsg < 65536 then
-		local data = string.char(bit.bor(0x80, opcode))
-			.. string.char(126)
-			.. string.char(bit.band(bit.rshift(nmsg, 8), 0xff))
-			.. string.char(bit.band(nmsg, 0xff))
+		local data = string.char(
+			bit.bor(0x80, opcode),
+			126,
+			bit.band(bit.rshift(nmsg, 8), 0xff),
+			bit.band(nmsg, 0xff))
 			.. msg
 		assert(#data == 4 + nmsg)
 
@@ -259,17 +260,22 @@ function WebSocketConn:send(msg, opcode)
 		if self.logging then
 			print('sending large websocket frame of size', nmsg)
 		end
-		local data =
-			string.char(bit.bor(0x80, opcode))
-			.. string.char(127)
-			.. string.char(bit.band(0xff, bit.rshift(nmsg, 56)))
-			.. string.char(bit.band(0xff, bit.rshift(nmsg, 48)))
-			.. string.char(bit.band(0xff, bit.rshift(nmsg, 40)))
-			.. string.char(bit.band(0xff, bit.rshift(nmsg, 32)))
-			.. string.char(bit.band(0xff, bit.rshift(nmsg, 24)))
-			.. string.char(bit.band(0xff, bit.rshift(nmsg, 16)))
-			.. string.char(bit.band(0xff, bit.rshift(nmsg, 8)))
-			.. string.char(bit.band(0xff, nmsg))
+		local data = string.char(
+			bit.bor(0x80, opcode),
+			127,
+--[[ luaresty's websockets limit size at 2gb ...
+			bit.band(0xff, bit.rshift(nmsg, 56)),
+			bit.band(0xff, bit.rshift(nmsg, 48)),
+			bit.band(0xff, bit.rshift(nmsg, 40)),
+			bit.band(0xff, bit.rshift(nmsg, 32)),
+--]]
+-- [[
+			0,0,0,0,
+--]]
+			bit.band(0xff, bit.rshift(nmsg, 24)),
+			bit.band(0xff, bit.rshift(nmsg, 16)),
+			bit.band(0xff, bit.rshift(nmsg, 8)),
+			bit.band(0xff, nmsg))
 			.. msg
 		assert(#data == 10 + nmsg)
 		self.socket:send(data)
