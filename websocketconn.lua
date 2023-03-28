@@ -16,6 +16,9 @@ end
 local WebSocketConn = class()
 
 WebSocketConn.sizeLimitBeforeFragmenting = math.huge
+WebSocketConn.fragmentSize = 100
+--WebSocketConn.fragmentSize = 1024
+--WebSocketConn.fragmentSize = 65535	-- NOTICE I don't have suport for >64k fragments yet
 
 --[[
 args:
@@ -23,21 +26,23 @@ args:
 	socket = luasocket
 	received = function(socketimpl, msg) (optional)
 	sizeLimitBeforeFragmenting (optional)
+	fragmentSize (optional)
 --]]
 function WebSocketConn:init(args)
 	local sock = assert(args.socket)
 	self.server = assert(args.server)
 	self.socket = sock
 	self.received = args.received
-	self.sizeLimitBeforeFragmenting = args.sizeLimitBeforeFragmenting 
-	
+	self.sizeLimitBeforeFragmenting = args.sizeLimitBeforeFragmenting
+	self.fragmentSize = args.fragmentSize
+
 	self.listenThread = self.server.threads:add(self.listenCoroutine, self)
 	self.readFrameThread = coroutine.create(self.readFrameCoroutine)	-- not part of the thread pool -- yielded manually with the next read byte
 	coroutine.assertresume(self.readFrameThread, self)						-- position us to wait for the first byte
 end
 
 -- public
-function WebSocketConn:isActive() 
+function WebSocketConn:isActive()
 	return coroutine.status(self.listenThread) ~= 'dead'
 end
 
@@ -66,7 +71,7 @@ function WebSocketConn:readFrameCoroutine_DecodeData()
 		for i=1,4 do
 			mask[i] = coroutine.yield()
 		end
-		
+
 		local decoded = table()
 		for i=1,size do
 			decoded[i] = string.char(bit.bxor(mask[(i-1)%4+1], coroutine.yield()))
@@ -84,9 +89,9 @@ local FRAME_PONG = 10
 
 -- private
 function WebSocketConn:readFrameCoroutine()
-	while not self.done 
-	and self.server 
-	and self.server.socket:getsockname() 
+	while not self.done
+	and self.server
+	and self.server.socket:getsockname()
 	do
 		-- this is blocking ...
 		local op = coroutine.yield()
@@ -94,7 +99,7 @@ function WebSocketConn:readFrameCoroutine()
 		local reserved1 = bit.band(op, 0x40) ~= 0
 		local reserved2 = bit.band(op, 0x20) ~= 0
 		local reserved3 = bit.band(op, 0x10) ~= 0
-		local opcode = bit.band(op, 0xf) 
+		local opcode = bit.band(op, 0xf)
 		assert(not reserved1)
 		assert(not reserved2)
 		assert(not reserved3)
@@ -132,7 +137,7 @@ function WebSocketConn:readFrameCoroutine()
 		else
 			error("got a reserved opcode: "..opcode)
 		end
-	end			
+	end
 	if self.logging then
 		print('readFrameCoroutine stopped')
 	end
@@ -141,7 +146,7 @@ end
 -- private
 function WebSocketConn:listenCoroutine()
 	coroutine.yield()
-	
+
 	while not self.done
 	and self.server
 	and self.server.socket:getsockname()
@@ -164,10 +169,10 @@ function WebSocketConn:listenCoroutine()
 			end
 		end
 		-- TODO sleep
-		
+
 		coroutine.yield()
 	end
-	
+
 	-- one thread needs responsibility to close ...
 	self:close()
 	if self.logging then
@@ -175,74 +180,38 @@ function WebSocketConn:listenCoroutine()
 	end
 end
 
--- public 
+-- public
 function WebSocketConn:send(msg, opcode)
-	if not opcode then 
+	if not opcode then
 		opcode = FRAME_TEXT
 		--opcode = FRAME_DATA
 	end
 
 	-- upon sending this to the browser, the browser is sending back 6 chars and then crapping out
-	--	no warnings given.  browser keeps acting like all is cool but it stops actually sending data afterwards. 
+	--	no warnings given.  browser keeps acting like all is cool but it stops actually sending data afterwards.
 	local nmsg = #msg
 	if self.logging then
 		print('send',nmsg,msg)
 	end
 	if nmsg < 126 then
 		local data = string.char(bit.bor(0x80, opcode))
-			.. string.char(nmsg) 
+			.. string.char(nmsg)
 			.. msg
 		assert(#data == 2 + nmsg)
-		
-		self.socket:send(data)
-	
-	elseif nmsg >= self.sizeLimitBeforeFragmenting then
-		-- [[ large frame ... not working?
-		-- this seems to be identical to here: https://stackoverflow.com/questions/8125507/how-can-i-send-and-receive-websocket-messages-on-the-server-side
-		-- but Chrome doesn't seem to receive the frame for size 118434
-		if self.logging then
-			print('sending large websocket frame of size', nmsg)
-		end
-		local data = 
-			string.char(bit.bor(0x80, opcode))
-			.. string.char(127)
-			.. string.char(bit.band(0xff, bit.rshift(nmsg, 56)))
-			.. string.char(bit.band(0xff, bit.rshift(nmsg, 48)))
-			.. string.char(bit.band(0xff, bit.rshift(nmsg, 40)))
-			.. string.char(bit.band(0xff, bit.rshift(nmsg, 32)))
-			.. string.char(bit.band(0xff, bit.rshift(nmsg, 24)))
-			.. string.char(bit.band(0xff, bit.rshift(nmsg, 16)))
-			.. string.char(bit.band(0xff, bit.rshift(nmsg, 8)))
-			.. string.char(bit.band(0xff, nmsg))
-			.. msg
-		assert(#data == 10 + nmsg)
-		self.socket:send(data)
-		--]]
 
-	elseif nmsg < 65536 then
-		local data = string.char(bit.bor(0x80, opcode))
-			.. string.char(126)
-			.. string.char(bit.band(bit.rshift(nmsg, 8), 0xff))
-			.. string.char(bit.band(nmsg, 0xff))
-			.. msg
-		assert(#data == 4 + nmsg)
-		
 		self.socket:send(data)
-	else
-		-- [[ multiple fragmented frames 
+	elseif nmsg >= self.sizeLimitBeforeFragmenting then
+		-- [[ multiple fragmented frames
 		-- ... it looks like the browser is sending the fragment headers to websocket onmessage? along with the frame data?
 		if self.logging then
 			print('sending large websocket frame fragmented -- msg size',nmsg)
 		end
-		local fragmentsize = 100
-		--local fragmentsize = 1024
-		--local fragmentsize = 65535
 		local fragopcode = opcode
-		for start=0,nmsg-1,fragmentsize do
-			local len = fragmentsize
+		for start=0,nmsg-1,self.fragmentSize do
+			local len = self.fragmentSize
 			if start + len > nmsg then len = nmsg - start end
 			local headerbyte = fragopcode
-			if start + len == nmsg then 
+			if start + len == nmsg then
 				headerbyte = bit.bor(headerbyte, 0x80)
 			end
 			if self.logging then
@@ -251,7 +220,7 @@ function WebSocketConn:send(msg, opcode)
 			local data
 			if len < 126 then
 				data = string.char(headerbyte)
-					.. string.char(len) 
+					.. string.char(len)
 					.. msg:sub(start+1, start+len)
 				assert(#data == 2 + len)
 			else
@@ -270,6 +239,40 @@ function WebSocketConn:send(msg, opcode)
 		--[[ how come when I send fragmented messages, websocket .onmessage receives all the raw data of each of them, header and all?
 		-- will that work if I just send the raw message as is? or does it only act that way when I don't want it to?
 		self:send(msg)
+		--]]
+
+	elseif nmsg < 65536 then
+		local data = string.char(bit.bor(0x80, opcode))
+			.. string.char(126)
+			.. string.char(bit.band(bit.rshift(nmsg, 8), 0xff))
+			.. string.char(bit.band(nmsg, 0xff))
+			.. msg
+		assert(#data == 4 + nmsg)
+
+		self.socket:send(data)
+
+	-- TODO an option for fragmenting into larger-than-64k pieces?
+	else
+		-- [[ large frame ... not working?
+		-- this seems to be identical to here: https://stackoverflow.com/questions/8125507/how-can-i-send-and-receive-websocket-messages-on-the-server-side
+		-- but Chrome doesn't seem to receive the frame for size 118434
+		if self.logging then
+			print('sending large websocket frame of size', nmsg)
+		end
+		local data =
+			string.char(bit.bor(0x80, opcode))
+			.. string.char(127)
+			.. string.char(bit.band(0xff, bit.rshift(nmsg, 56)))
+			.. string.char(bit.band(0xff, bit.rshift(nmsg, 48)))
+			.. string.char(bit.band(0xff, bit.rshift(nmsg, 40)))
+			.. string.char(bit.band(0xff, bit.rshift(nmsg, 32)))
+			.. string.char(bit.band(0xff, bit.rshift(nmsg, 24)))
+			.. string.char(bit.band(0xff, bit.rshift(nmsg, 16)))
+			.. string.char(bit.band(0xff, bit.rshift(nmsg, 8)))
+			.. string.char(bit.band(0xff, nmsg))
+			.. msg
+		assert(#data == 10 + nmsg)
+		self.socket:send(data)
 		--]]
 	end
 end

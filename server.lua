@@ -81,6 +81,9 @@ Server.usetls = true
 -- websocket size limit before fragmentation.  default = nil = use websocketconn class limit = infinite
 Server.sizeLimitBeforeFragmenting = nil
 
+-- how big the fragments should be.  default = nil = use class default.
+Server.fragmentSize = nil
+
 --[[
 args:
 	hostname - to be sent back via socket header
@@ -241,12 +244,12 @@ end
 
 -- create a remote connection
 function Server:connectRemoteCoroutine(client)
-	
+
 	-- do I have to do this for the tls before wrapping the tls?
 	-- or can I only do this in the non-tls branch?
 	client:setoption('keepalive', true)
 	client:settimeout(0, 'b')	-- for the benefit of coroutines ...
-	
+
 	-- TODO all of this should be in the client handle coroutine
 	-- [[ can I do this?
 	-- from https://stackoverflow.com/questions/2833947/stuck-with-luasec-lua-secure-socket
@@ -388,6 +391,7 @@ function Server:connectRemoteCoroutine(client)
 				socket = client,
 				implClass = WebSocketHixieConn,
 				sizeLimitBeforeFragmenting = self.sizeLimitBeforeFragmenting,
+				fragmentSize = self.fragmentSize,
 			}
 			self.lastActiveConnTime = self.getTime()
 			return
