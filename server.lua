@@ -72,11 +72,10 @@ Server.connClass = require 'websocket.simpleconn'
 Server.port = 27000
 
 -- TODO log levels
-Server.logging = true
+Server.logging = false
 
--- default always assume TLS
--- TODO detect?
-Server.usetls = true
+-- whether to use TLS
+Server.usetls = false
 
 -- websocket size limit before fragmentation.  default = nil = use websocketconn class limit = infinite
 Server.sizeLimitBeforeFragmenting = nil
@@ -91,14 +90,19 @@ args:
 	address (default is *)
 	port (default is 27000)
 	getTime (optional) = fraction-of-seconds-accurate timer function.  default requires either FFI or an external C binding or os.clock ... or you can provide your own.
-	usetls = override default usetls==true
+	keyfile = ssl key file
+	certfile = ssl cert file
+		- if keyfile and certfile are set then usetls will be used
 --]]
 function Server:init(args)
 	args = args or {}
 	self.port = args.port
-	if args.usetls ~= nil then
-		self.usetls = args.usetls
+	if args.keyfile and args.certfile then
+		self.usetls = true
+		self.keyfile = args.keyfile
+		self.certfile = args.certfile
 	end
+	if args.logging ~= nil then self.logging = args.logging end
 
 	self.getTime = args.getTime or require 'websocket.gettimeofday'
 
@@ -261,15 +265,12 @@ function Server:connectRemoteCoroutine(client)
 		end
 		local ssl = require 'ssl'	-- package luasec
 		-- TODO instead, just ask whoever is launching the server
-		assert(self.hostname, "need the hostname to find the certs")
-		local keyfile = '/etc/letsencrypt/live/'..self.hostname..'/privkey.pem'
-		local certfile = '/etc/letsencrypt/live/'..self.hostname..'/cert.pem'
 		if self.logging then
-			print(self.getTime(), 'keyfile', keyfile, 'exists', file(keyfile):exists())
-			print(self.getTime(), 'certfile', certfile, 'exists', file(certfile):exists())
+			print(self.getTime(), 'keyfile', self.keyfile, 'exists', file(self.keyfile):exists())
+			print(self.getTime(), 'certfile', self.certfile, 'exists', file(self.certfile):exists())
 		end
-		assert(file(keyfile):exists())
-		assert(file(certfile):exists())
+		assert(file(self.keyfile):exists())
+		assert(file(self.certfile):exists())
 		local err
 		client, err = assert(ssl.wrap(client, {
 			mode = 'server',
@@ -279,8 +280,8 @@ function Server:connectRemoteCoroutine(client)
 			-- following: https://github.com/brunoos/luasec/blob/master/src/https.lua
 			--protocol = 'all',
 			--options = {'all', 'no_sslv2', 'no_sslv3', 'no_tlsv1'},
-			key = keyfile,
-			certificate = certfile,
+			key = self.keyfile,
+			certificate = self.certfile,
 			password = '12345',
 			ciphers = 'ALL:!ADH:@STRENGTH',
 		}))
@@ -288,7 +289,7 @@ function Server:connectRemoteCoroutine(client)
 		--client:setkeepalive()				-- nope
 		--client:setoption('keepalive', true)	-- nope
 		if self.logging then
-			print(self.getTime(),'ssl.wrap response:', err)
+			print(self.getTime(),'ssl.wrap error:', err)
 			print(self.getTime(),'doing handshake...')
 		end
 		-- from https://github-wiki-see.page/m/brunoos/luasec/wiki/LuaSec-1.0.x
