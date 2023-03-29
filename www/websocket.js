@@ -153,10 +153,9 @@ console.log('websocket onerror', arguments);
 	
 		//first try websockets ...
 		//mind you, the server only handles the RFC websockets
-		this.commClasses = [
-			this.AsyncCommWebSocket,
-			this.AsyncCommAjax,
-		];
+		this.commClasses = [];
+		if (!args.disableWebsocket) this.commClasses.push(this.AsyncCommWebSocket);
+		if (!args.disableAjax) this.commClasses.push(this.AsyncCommAjax);
 	},
 
 	connect : function(done) {
