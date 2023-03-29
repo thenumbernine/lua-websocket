@@ -150,24 +150,24 @@ console.log('websocket onerror', arguments);
 				this.sendQueue.push(msg);
 			}
 		});
+	
+		//first try websockets ...
+		//mind you, the server only handles the RFC websockets
+		this.commClasses = [
+			this.AsyncCommWebSocket,
+			this.AsyncCommAjax,
+		];
 	},
 
 	connect : function(done) {
 		this.impl = undefined;
-
-		//first try websockets ...
-		//mind you, the server only handles the RFC websockets
-		var classes = [
-			this.AsyncCommWebSocket,
-			this.AsyncCommAjax
-		];
-		for (var i = 0; i < classes.length; i++) {
+		for (var i = 0; i < this.commClasses.length; i++) {
 			try {
-				this.impl = new classes[i](done);
-				//console.log('succeeded with', classes[i].prototype.name);
+				this.impl = new this.commClasses[i](done);
+				//console.log('succeeded with', this.commClasses[i].prototype.name);
 				break;
 			} catch (ex) {
-				console.log('conn init failed '+classes[i].prototype.name+' '+ex);
+				console.log('conn init failed '+this.commClasses[i].prototype.name+' '+ex);
 			}
 		}
 		if (this.impl === undefined) throw 'failed to initialize any kind of async communication';
