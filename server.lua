@@ -35,9 +35,9 @@ local function receiveBlocking(conn, waitduration, secondsTimerFunc)
 		data, reason = conn:receive('*l')
 		if not data then
 			if reason == 'wantread' then
---print('got wantread, calling select...')
+--self:log('got wantread, calling select...')
 				socket.select(nil, {conn})
---print('...done calling select')
+--self:log('...done calling select')
 			else
 				if reason ~= 'timeout' then
 					return nil, reason		-- error() ?
@@ -117,15 +117,11 @@ function Server:init(args)
 
 	local address = args.address or '*'
 	self.hostname = assert(args.hostname, "expected hostname")
-	if self.logging then
-		print("hostname "..tostring(self.hostname))
-		print("binding to "..tostring(address)..":"..tostring(self.port))
-	end
+self:log("hostname "..tostring(self.hostname))
+self:log("binding to "..tostring(address)..":"..tostring(self.port))
 	self.socket = assert(socket.bind(address, self.port))
 	self.socketaddr, self.socketport = self.socket:getsockname()
-	if self.logging then
-		print('listening '..self.socketaddr..':'..self.socketport)
-	end
+self:log('listening '..self.socketaddr..':'..self.socketport)
 	self.socket:settimeout(0, 'b')
 end
 
@@ -135,6 +131,16 @@ function Server:getNextConnUID()
 	return uid
 end
 
+function Server:fmtTime()
+	local f = self.getTime()
+	local i = math.floor(f)
+	return os.date('%Y/%m/%d %H:%M:%S', os.time())..(('%.3f'):format(f-i):match('%.%d+') or '')
+end
+
+function Server:log(...)
+	if not self.logging then return end
+	print(self:fmtTime(), ...)
+end
 
 function Server:update()
 	socket.sleep(.001)
@@ -142,13 +148,9 @@ function Server:update()
 	-- listen for new connections
 	local client = self.socket:accept()
 	if client then
-		if self.logging then
-			print('got connection!',client)
-			print('connection from', client:getpeername())
-		end
-		if self.logging then
-			print(self.getTime(),'spawning new thread...')
-		end
+self:log('got connection!',client)
+self:log('connection from', client:getpeername())
+self:log('spawning new thread...')
 		self.threads:add(self.connectRemoteCoroutine, self, client)
 	end
 
@@ -160,15 +162,15 @@ function Server:update()
 				conn:onRemove()
 			end
 			if AjaxSocketConn:isa(conn.socketImpl) then
-				assert(self.ajaxConns[conn.socketImpl.sessionID] == conn)
-				self.ajaxConns[conn.socketImpl.sessionID] = nil
-				if self.logging then
-					print(self.getTime(),'removing ajax conn',conn.socketImpl.sessionID)
+				if self.ajaxConns[conn.socketImpl.sessionID] ~= conn then
+					-- or todo, dump all conns here?
+self:log('session', conn.socketImpl.sessionID, 'overwriting old conn', conn, 'with', self.ajaxConns[conn.socketImpl.sessionID])
+				else
+					self.ajaxConns[conn.socketImpl.sessionID] = nil
+self:log('removing ajax conn',conn.socketImpl.sessionID)
 				end
 			else
-				if self.logging then
-					print(self.getTime(),'removing websocket conn')
-				end
+self:log('removing websocket conn')
 			end
 			self.conns[i] = nil
 		else
@@ -260,15 +262,11 @@ function Server:connectRemoteCoroutine(client)
 	-- TODO need to specify cert files
 	-- TODO but if you want to handle both https and non-https on different ports, that means two connections, that means better make non-blocking the default
 	if self.usetls then
-		if self.logging then
-			print(self.getTime(),'upgrading to ssl...')
-		end
+self:log('upgrading to ssl...')
 		local ssl = require 'ssl'	-- package luasec
 		-- TODO instead, just ask whoever is launching the server
-		if self.logging then
-			print(self.getTime(), 'keyfile', self.keyfile, 'exists', file(self.keyfile):exists())
-			print(self.getTime(), 'certfile', self.certfile, 'exists', file(self.certfile):exists())
-		end
+self:log('keyfile', self.keyfile, 'exists', file(self.keyfile):exists())
+self:log('certfile', self.certfile, 'exists', file(self.certfile):exists())
 		assert(file(self.keyfile):exists())
 		assert(file(self.certfile):exists())
 		local err
@@ -288,51 +286,39 @@ function Server:connectRemoteCoroutine(client)
 		assert(client:settimeout(0, 'b'))
 		--client:setkeepalive()				-- nope
 		--client:setoption('keepalive', true)	-- nope
-		if self.logging then
-			print(self.getTime(),'ssl.wrap error:', err)
-			print(self.getTime(),'doing handshake...')
-		end
+self:log('ssl.wrap error:', err)
+self:log('doing handshake...')
 		-- from https://github-wiki-see.page/m/brunoos/luasec/wiki/LuaSec-1.0.x
 		-- also goes in receiveBlocking for conn:receive
 		local result,reason
 		while not result do
 			coroutine.yield()
 			result, reason = client:dohandshake()
-			if self.logging then
 -- there can be a lot of these ...
---print(self.getTime(), 'dohandshake', result, reason)
-			end
+--self:log('dohandshake', result, reason)
 			if reason == 'wantread' then
---print('got wantread, calling select...')
+--self:log('got wantread, calling select...')
 				socket.select(nil, {client})
---print('...done calling select')
+--self:log('...done calling select')
 			end
 			if reason == 'unknown state' then error('handshake conn in unknown state') end
 		end
-		if self.logging then
-			print(self.getTime(), "dohandshake finished")
-		end
+self:log("dohandshake finished")
 	end
 	--]]
 
 	-- chrome has a bug where it connects and asks for a favicon even if there is none, or something, idk ...
 	local firstLine, reason = receiveBlocking(client, 5, self.getTime)
-	if self.logging then
-		print(self.getTime(),client,'>>',firstLine,reason)
-	end
+self:log(client,'>>',firstLine,reason)
 	if not (firstLine == 'GET / HTTP/1.1' or firstLine == 'POST / HTTP/1.1') then
-		if self.logging then
-			print(self.getTime(),'got a non-http conn: ',firstLine)
-		end
+self:log('got a non-http conn: ',firstLine)
 		return
 	end
 
 	local header = table()
 	while true do
 		local recv = mustReceiveBlocking(client, 1, self.getTime)
-		if self.logging then
-			print(self.getTime(),client,'>>',recv)
-		end
+self:log(client,'>>',recv)
 		if recv == '' then break end
 		local k,v = recv:match('^(.-): (.*)$')
 		k = k:lower()
@@ -364,9 +350,7 @@ function Server:connectRemoteCoroutine(client)
 
 			local body, err, partial = client:receive(tonumber(header['content-length']) or '*a')
 			body = body or partial
-			if self.logging then
-				print(self.getTime(),client,'>>',body)
-			end
+self:log(client,'>>',body)
 			assert(#body == 8)
 
 			local response = digest('md5', be32ToStr(digits1) .. be32ToStr(digits2) .. body, true)
@@ -381,9 +365,7 @@ function Server:connectRemoteCoroutine(client)
 				'\r\n',
 				response,
 			} do
-				if self.logging then
-					print(self.getTime(),client,'<<',line:match('^(.*)\r\n$'))
-				end
+self:log(client,'<<',line:match('^(.*)\r\n$'))
 				client:send(line)
 			end
 
@@ -409,16 +391,12 @@ function Server:connectRemoteCoroutine(client)
 				'Sec-WebSocket-Accept: '..response..'\r\n',
 				'\r\n',
 			} do
-				if self.loggign then
-					print(self.getTime(),client,'<<'..line:match('^(.*)\r\n$'))
-				end
+self:log(client,'<<',line:match('^(.*)\r\n$'))
 				client:send(line)
 			end
 
 			-- only add to Server.conns through *HERE*
-			if self.logging then
-				print(self.getTime(),'creating websocket conn')
-			end
+self:log('creating websocket conn')
 			local serverConn = self.connClass{
 				server = self,
 				socket = client,
@@ -427,9 +405,7 @@ function Server:connectRemoteCoroutine(client)
 				fragmentSize = self.fragmentSize,
 			}
 			serverConn.socketImpl.logging = self.logging
-			if self.logging then
-				print('constructing ServerConn',serverConn,'...')
-			end
+self:log('constructing ServerConn',serverConn,'...')
 			self.lastActiveConnTime = self.getTime()
 			return
 		end
@@ -442,15 +418,11 @@ function Server:connectRemoteCoroutine(client)
 
 	local body, err, partial = client:receive(tonumber(header['content-length']) or '*a')
 	body = body or partial
-	if self.logging then
-		print(self.getTime(),client,'>>',body)
-	end
+self:log(client,'>>',body)
 	local receiveQueue = json.decode(body)
 	local sessionID
 	if not receiveQueue then
-		if self.logging then
-			print('failed to decode ajax body',body)
-		end
+self:log('failed to decode ajax body',body)
 		receiveQueue = {}
 	else
 		if #receiveQueue > 0 then
@@ -461,9 +433,7 @@ function Server:connectRemoteCoroutine(client)
 			end
 		end
 	end
-	if self.logging then
-		print('got session id', sessionID)
-	end
+self:log('got session id', sessionID)
 
 	local newSessionID
 	if sessionID then	-- if the client has a sessionID then ...
@@ -471,22 +441,19 @@ function Server:connectRemoteCoroutine(client)
 		serverConn = self.ajaxConns[sessionID]
 		-- these are fake conn objects -- they merge multiple conns into one polling fake conn
 		-- so headers and data need to be re-sent every time a new poll conn is made
+		if not serverConn then
+self:log('NO CONN FOR ', sessionID)
+		end
 	else
 		newSessionID = true
 		sessionID = mime.b64(digest('sha1', header:values():concat()..os.date(), true))
-		if self.logging then
-			print('generating session id', sessionID)
-		end
+self:log('no sessionID -- generating session id', sessionID)
 	end
 	-- no pre-existing connection? make a new one
 	if serverConn then
-		if self.logging then
-			print(self.getTime(),'updating ajax conn')
-		end
+self:log('updating ajax conn')
 	else
-		if self.logging then
-			print(self.getTime(),'creating ajax conn',sessionID,newSessionID)
-		end
+self:log('creating ajax conn',sessionID,newSessionID)
 		serverConn = self.connClass{
 			server = self,
 			implClass = AjaxSocketConn,
@@ -503,9 +470,7 @@ function Server:connectRemoteCoroutine(client)
 	end
 	local response = json.encode(responseQueue)
 
-	if self.logging then
-		print('sending ajax response size',#response,'body',response)
-	end
+self:log('sending ajax response size',#response,'body',response)
 
 	-- send response header
 	local lines = table()
@@ -519,9 +484,7 @@ function Server:connectRemoteCoroutine(client)
 	lines:insert(response..'\r\n')
 
 	for _,line in ipairs(lines) do
-		if self.logging then
-			print(client,'<<'..line:match('^(.*)\r\n$'))
-		end
+self:log(client,'<<', line:match('^(.*)\r\n$'))
 		client:send(line)
 	end
 

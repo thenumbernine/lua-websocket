@@ -106,8 +106,8 @@ console.log('websocket onerror', arguments);
 				setTimeout(function() {
 					var sendQueue = thiz.sendQueue;
 					//cookies cross domain?  port change means domain change?  just wrap sessions into the protocol ...
-					if (this.sessionID !== undefined) {
-						sendQueue.splice(0, 0, 'sessionID '+this.sessionID);
+					if (thiz.sessionID !== undefined) {
+						sendQueue.splice(0, 0, 'sessionID '+thiz.sessionID);
 					}
 					thiz.sendQueue = [];
 					$.ajax({
@@ -116,13 +116,14 @@ console.log('websocket onerror', arguments);
 						data : JSON.stringify(sendQueue),
 						//dataType : 'json',
 						success : function(msgsdata) {
-							console.log('got '+msgsdata);
+//console.log('got '+msgsdata);
 							var msgs = $.parseJSON(msgsdata)
 							//process responses
 							for (var i = 0; i < msgs.length; i++) {
 								var msg = msgs[i];
 								if (msg.substring(0,10) == 'sessionID ') {
-									clientConn.AsyncCommAjax.prototype.sessionID = msg.substring(10);
+//console.log("sessionID is", msg.substring(10));
+									thiz.sessionID = msg.substring(10);
 								} else if (msg.substring(0,10) == '(partial) ') {
 									var part = msg.substring(10);
 									thiz.partialMsg += part;
@@ -150,7 +151,7 @@ console.log('websocket onerror', arguments);
 				this.sendQueue.push(msg);
 			}
 		});
-	
+
 		//first try websockets ...
 		//mind you, the server only handles the RFC websockets
 		this.commClasses = [];

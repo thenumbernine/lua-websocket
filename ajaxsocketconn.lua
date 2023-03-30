@@ -32,6 +32,8 @@ function AjaxSocketConn:send(msg)
 	self.sendQueue:insert(msg)
 end
 
+AjaxSocketConn.messageMaxLen = 512000
+
 function AjaxSocketConn:poll(receiveQueue)
 	-- update timestamp
 	self.lastPollTime = getTime()
@@ -45,13 +47,12 @@ function AjaxSocketConn:poll(receiveQueue)
 	-- next send the new stuff out
 	local sendQueue = table()
 	local sendQueueSize = 0
-	local maxLen = 512 
 	local partialPrefix = '(partial) '
 	local partialEndPrefix = '(partialEnd) '
 	while #self.sendQueue > 0 do
 		local msg = self.sendQueue:remove(1)
-		local remainingSize = maxLen - sendQueueSize
-		if #msg < maxLen - sendQueueSize then
+		local remainingSize = self.messageMaxLen - sendQueueSize
+		if #msg < self.messageMaxLen - sendQueueSize then
 			-- granted this neglects json encoding data
 			-- so lots of little values will throw it off
 			sendQueueSize = sendQueueSize + #msg
