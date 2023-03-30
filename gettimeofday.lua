@@ -19,6 +19,7 @@ int gettimeofday(struct timeval*, void*);
 		return tonumber(gettimeofday_tv.tv_sec) + tonumber(gettimeofday_tv.tv_usec) / 1000000
 	end
 end)
+--print(success, getTime)
 if success then 
 	--print('using ffi gettimeofday')
 	return getTime
@@ -27,17 +28,19 @@ end
 
 -- [=[ using .so
 local success, getTime = pcall(function()
-	local l_gettimeofday = assert(package.loadlib('lib/gettimeofday.so', 'l_gettimeofday'))
+	-- lua cpath needs to match path
+	local l_gettimeofday = require 'websocket.lib.gettimeofday'
 	return function()
 		local sec, usec = l_gettimeofday()
 		return sec + usec / 1000000
 	end
 end)
+--print(success, getTime)
 if success then
 	--print('using l_gettimeofday')
 	return getTime
 end
 --]=]
 
--- default
+--print'using default os.clock'
 return os.clock

@@ -30,3 +30,5 @@ Ex:
 MyConn = class(require 'websocket.simpleconn')
 MyServer.connClass = MyConn
 ```
+
+requires the `LUA_CPATH` to include the folder where websocket is installed.  I'm sure I will need to change the rockspec.
