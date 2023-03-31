@@ -116,7 +116,7 @@ console.log('websocket onerror', arguments);
 						data : JSON.stringify(sendQueue),
 						//dataType : 'json',
 						success : function(msgsdata) {
-//console.log('got '+msgsdata);
+console.log('got '+msgsdata);
 							var msgs = $.parseJSON(msgsdata)
 							//process responses
 							for (var i = 0; i < msgs.length; i++) {

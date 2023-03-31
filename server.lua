@@ -20,45 +20,6 @@ if not bit then
 end
 
 
--- coroutine function that blocks til it gets something
-local function receiveBlocking(conn, waitduration, secondsTimerFunc)
-	coroutine.yield()
-
-	local endtime
-	if waitduration then
-		endtime = secondsTimerFunc() + waitduration
-	end
-	local data
-	repeat
-		coroutine.yield()
-		local reason
-		data, reason = conn:receive('*l')
-		if not data then
-			if reason == 'wantread' then
---self:log('got wantread, calling select...')
-				socket.select(nil, {conn})
---self:log('...done calling select')
-			else
-				if reason ~= 'timeout' then
-					return nil, reason		-- error() ?
-				end
-				-- else continue
-				if waitduration and secondsTimerFunc() > endtime then
-					return nil, 'timeout'
-				end
-			end
-		end
-	until data ~= nil
-
-	return data
-end
-
-local function mustReceiveBlocking(conn, waitduration, secondsTimerFunc)
-	local recv, reason = receiveBlocking(conn, waitduration, secondsTimerFunc)
-	if not recv then error("Server waiting for handshake receive failed with error "..tostring(reason)) end
-	return recv
-end
-
 
 local Server = class()
 
@@ -140,6 +101,73 @@ end
 function Server:log(...)
 	if not self.logging then return end
 	print(self:fmtTime(), ...)
+end
+
+
+-- coroutine function that blocks til it gets something
+function Server:receiveBlocking(conn, waitduration)
+	coroutine.yield()
+
+	local endtime
+	if waitduration then
+		endtime = self.getTime() + waitduration
+	end
+	local data
+	repeat
+		coroutine.yield()
+		local reason
+		data, reason = conn:receive('*l')
+		if not data then
+			if reason == 'wantread' then
+--self:log('got wantread, calling select...')
+				socket.select(nil, {conn})
+--self:log('...done calling select')
+			else
+				if reason ~= 'timeout' then
+					return nil, reason		-- error() ?
+				end
+				-- else continue
+				if waitduration and self.getTime() > endtime then
+					return nil, 'timeout'
+				end
+			end
+		end
+	until data ~= nil
+
+	return data
+end
+
+function Server:mustReceiveBlocking(conn, waitduration)
+	local recv, reason = self:receiveBlocking(conn, waitduration)
+	if not recv then error("Server waiting for handshake receive failed with error "..tostring(reason)) end
+	return recv
+end
+
+-- send and make sure you send everything, and error upon fail
+function Server:send(conn, data)
+self:log(conn, '<<', data)
+	local i = 1
+	while true do
+		-- conn:send() successful response will be numberBytesSent, nil, nil, time
+		-- conn:send() failed response will be nil, 'wantwrite', numBytesSent, time
+self:log(conn, ' sending from '..i)
+		local successlen, reason, faillen, time = conn:send(data:sub(i))	-- socket.send lets you use i,j as substring args, but does luasec's ssl.wrap ?
+		res = table.pack(conn:send(data:sub(i)))
+self:log(conn, '...', res:unpack())
+self:log(conn, '...getstats()', conn:getstats())
+		if successlen ~= nil then
+			assert(reason ~= 'wantwrite')	-- will wantwrite get set only if res[1] is nil?
+			return successlen, reason, faillen, time
+		end
+		if reason ~= 'wantwrite' then
+			error('socket.send failed: '..tostring(reason))
+		end
+		--socket.select({conn}, nil)	-- not good?
+		-- try again
+		i = i + faillen
+	end
+self:log(conn, '...done sending')
+	return res:unpack()
 end
 
 function Server:update()
@@ -308,7 +336,7 @@ self:log("dohandshake finished")
 	--]]
 
 	-- chrome has a bug where it connects and asks for a favicon even if there is none, or something, idk ...
-	local firstLine, reason = receiveBlocking(client, 5, self.getTime)
+	local firstLine, reason = self:receiveBlocking(client, 5)
 self:log(client,'>>',firstLine,reason)
 	if not (firstLine == 'GET / HTTP/1.1' or firstLine == 'POST / HTTP/1.1') then
 self:log('got a non-http conn: ',firstLine)
@@ -317,7 +345,7 @@ self:log('got a non-http conn: ',firstLine)
 
 	local header = table()
 	while true do
-		local recv = mustReceiveBlocking(client, 1, self.getTime)
+		local recv = self:mustReceiveBlocking(client, 1)
 self:log(client,'>>',recv)
 		if recv == '' then break end
 		local k,v = recv:match('^(.-): (.*)$')
@@ -365,8 +393,7 @@ self:log(client,'>>',body)
 				'\r\n',
 				response,
 			} do
-self:log(client,'<<',line:match('^(.*)\r\n$'))
-				client:send(line)
+				self:send(client, line)
 			end
 
 			local serverConn = self.connClass{
@@ -391,8 +418,7 @@ self:log(client,'<<',line:match('^(.*)\r\n$'))
 				'Sec-WebSocket-Accept: '..response..'\r\n',
 				'\r\n',
 			} do
-self:log(client,'<<',line:match('^(.*)\r\n$'))
-				client:send(line)
+				self:send(client, line)
 			end
 
 			-- only add to Server.conns through *HERE*
@@ -474,19 +500,42 @@ self:log('sending ajax response size',#response,'body',response)
 
 	-- send response header
 	local lines = table()
-	lines:insert('HTTP/1.1 200 OK\r\n')
-	lines:insert('Date '..os.date('!%a, %d %b %Y %T')..' GMT\r\n')
-	lines:insert('Content-Type: text/plain\r\n') --droid4 default browser is mystery crashing... i suspect it cant handle json responses...
-	lines:insert('Content-Length: '..#response..'\r\n')
-	lines:insert('Access-Control-Allow-Origin: *\r\n')
-	lines:insert('Connection: close\r\n')		-- IE needs this
-	lines:insert('\r\n')
-	lines:insert(response..'\r\n')
+	lines:insert('HTTP/1.1 200 OK')
+	--lines:insert('Date: '..os.date('!%a, %d %b %Y %T')..' GMT')
+	lines:insert('content-type: text/plain') --droid4 default browser is mystery crashing... i suspect it cant handle json responses...
 
-	for _,line in ipairs(lines) do
-self:log(client,'<<', line:match('^(.*)\r\n$'))
-		client:send(line)
+	-- when I use this I get an error in Chrome: net::ERR_CONTENT_LENGTH_MISMATCH 200 (OK) ... so just don't use this?
+	-- when I don't use this I get a truncated json message
+	lines:insert('content-length: '..#response..'')
+
+	lines:insert('pragma: no-cache')
+	lines:insert('cache-control: no-cache, no-store, must-revalidate')
+	lines:insert('expires: 0')
+
+	lines:insert('Access-Control-Allow-Origin: *')	-- same url different port is considered cross-domain because reasons
+	--lines:insert('Connection: close')		-- IE needs this
+	lines:insert('')
+	lines:insert(response)
+
+	--[[ send all at once
+	local msg = lines:concat'\r\n'
+	self:send(client, msg)
+	--]]
+	-- [[ send line by line
+	for i,line in ipairs(lines) do
+		self:send(client, line..(i < #lines and '\r\n' or ''))
 	end
+	--]]
+	--[[ send chunk by chunk.  does luasec or luasocket have a maximum send size?
+	local msg = lines:concat'\r\n'
+	local n = #msg
+	local chunkSize = 4096
+	for i=0,n-1,chunkSize do
+		local len = math.min(chunkSize, n-i)
+		local submsg = msg:sub(i+1, i+len)
+		self:send(client, submsg)
+	end
+	--]]
 
 	client:close()
 end
