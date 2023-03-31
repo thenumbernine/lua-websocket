@@ -152,11 +152,11 @@ self:log(conn, '<<', data)
 		-- conn:send() failed response will be nil, 'wantwrite', numBytesSent, time
 self:log(conn, ' sending from '..i)
 		local successlen, reason, faillen, time = conn:send(data:sub(i))	-- socket.send lets you use i,j as substring args, but does luasec's ssl.wrap ?
-		res = table.pack(conn:send(data:sub(i)))
-self:log(conn, '...', res:unpack())
+self:log(conn, '...', successlen, reason, faillen, time)
 self:log(conn, '...getstats()', conn:getstats())
 		if successlen ~= nil then
 			assert(reason ~= 'wantwrite')	-- will wantwrite get set only if res[1] is nil?
+self:log(conn, '...done sending')
 			return successlen, reason, faillen, time
 		end
 		if reason ~= 'wantwrite' then
@@ -166,8 +166,6 @@ self:log(conn, '...getstats()', conn:getstats())
 		-- try again
 		i = i + faillen
 	end
-self:log(conn, '...done sending')
-	return res:unpack()
 end
 
 function Server:update()
@@ -512,16 +510,16 @@ self:log('sending ajax response size',#response,'body',response)
 	lines:insert('cache-control: no-cache, no-store, must-revalidate')
 	lines:insert('expires: 0')
 
-	lines:insert('Access-Control-Allow-Origin: *')	-- same url different port is considered cross-domain because reasons
+	lines:insert('access-control-allow-origin: *')	-- same url different port is considered cross-domain because reasons
 	--lines:insert('Connection: close')		-- IE needs this
 	lines:insert('')
 	lines:insert(response)
 
-	--[[ send all at once
+	-- [[ send all at once
 	local msg = lines:concat'\r\n'
 	self:send(client, msg)
 	--]]
-	-- [[ send line by line
+	--[[ send line by line
 	for i,line in ipairs(lines) do
 		self:send(client, line..(i < #lines and '\r\n' or ''))
 	end

@@ -29,9 +29,8 @@ args:
 	fragmentSize (optional)
 --]]
 function WebSocketConn:init(args)
-	local sock = assert(args.socket)
 	self.server = assert(args.server)
-	self.socket = sock
+	self.socket = assert(args.socket)
 	self.received = args.received
 	self.sizeLimitBeforeFragmenting = args.sizeLimitBeforeFragmenting
 	self.fragmentSize = args.fragmentSize
@@ -200,7 +199,7 @@ function WebSocketConn:send(msg, opcode)
 			.. msg
 		assert(#data == 2 + nmsg)
 
-		self.socket:send(data)
+		self.server:send(self.socket, data)
 	elseif nmsg >= self.sizeLimitBeforeFragmenting then
 		-- multiple fragmented frames
 		-- ... it looks like the browser is sending the fragment headers to websocket onmessage? along with the frame data?
@@ -225,7 +224,7 @@ function WebSocketConn:send(msg, opcode)
 					len)
 					.. msg:sub(start+1, start+len)
 				assert(#data == 2 + len)
-				self.socket:send(data)
+				self.server:send(self.socket, data)
 			else
 				assert(len < 65536)
 				data = string.char(
@@ -235,7 +234,7 @@ function WebSocketConn:send(msg, opcode)
 					bit.band(len, 0xff))
 					.. msg:sub(start+1, start+len)
 				assert(#data == 4 + len)
-				self.socket:send(data)
+				self.server:send(self.socket, data)
 			end
 			fragopcode = 0
 		end
@@ -249,7 +248,7 @@ function WebSocketConn:send(msg, opcode)
 			.. msg
 		assert(#data == 4 + nmsg)
 
-		self.socket:send(data)
+		self.server:send(self.socket, data)
 
 	else
 		-- large frame ... not working?
@@ -276,7 +275,7 @@ function WebSocketConn:send(msg, opcode)
 			bit.band(0xff, nmsg))
 			.. msg
 		assert(#data == 10 + nmsg)
-		self.socket:send(data)
+		self.server:send(self.socket, data)
 		--]]
 	end
 end

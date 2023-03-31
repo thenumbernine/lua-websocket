@@ -85,7 +85,7 @@ end
 -- public 
 function WebSocketHixieConn:send(msg)
 	print(getTime(),self.socket,'<<',msg)
-	self.socket:send(string.char(0x00) .. msg .. string.char(0xff))
+	self.server:send(self.socket, string.char(0x00) .. msg .. string.char(0xff))
 end
 
 -- public, abstract
