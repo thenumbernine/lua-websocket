@@ -45,42 +45,42 @@ class ClientConn {
 				if (this.connected) return;
 				let thiz = this;
 				this.ws = new WebSocket(clientConn.wsProto+'://'+clientConn.uri);
-				this.ws.onopen = function(evt) {
-//console.log('websocket onopen', evt);
+				this.ws.addEventListener('open', evt => {
+//console.log('websocket open', evt);
 					thiz.connected = true;
 					if (done) done();
-				};
-				this.ws.onclose = function(evt) {
+				});
+				this.ws.addEventListener('close', evt => {
 console.log('websocket onclose', evt);
 console.log('error code', evt.code);
 					thiz.connected = false;
 					if (clientConn.onClose) {
 						clientConn.onClose.apply(clientConn, arguments);
 					}
-				};
-				this.ws.onmessage = function(evt) {
+				});
+				this.ws.addEventListener('message', evt => {
 //console.log('websocket onmessage', evt);
 					let isblob = evt.data.constructor == Blob;
 					if (isblob) {
 						// blob to text, because javascript is a trash language/API
 						let reader = new FileReader();
-						reader.onload = function(e) {
+						reader.addEventListener('load', e => {
 							let text = reader.result;
 							clientConn.onMessage(text);
-						};
+						});
 						reader.readAsText(evt.data);
 					} else {
 						// text ... I hope
 						clientConn.onMessage(evt.data);
 					}
-				};
-				this.ws.onerror = function(evt) {
+				});
+				this.ws.addEventListener('error', evt => {
 console.log('websocket onerror', arguments);
 // https://stackoverflow.com/questions/18803971/websocket-onerror-how-to-read-error-description
 // optimistic but not standard .... and not showing up on chrome desktop
 //console.log('error code', evt.code);
 					throw evt;
-				};
+				});
 			}
 			send(data) {
 				this.ws.send(data);
