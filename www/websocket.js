@@ -164,9 +164,9 @@ console.log('got msgs',msgs);
 		this.impl = undefined;
 		for (let i = 0; i < this.commClasses.length; i++) {
 			try {
-console.log("attempting class", this.commClasses[i].prototype.name);
+//console.log("websocket comm attempting class", this.commClasses[i].prototype.name);
 				this.impl = new this.commClasses[i](done);
-console.log('succeeded with', this.commClasses[i].prototype.name);
+console.log('websocket comm succeeded with', this.commClasses[i].prototype.name);
 				break;
 			} catch (ex) {
 console.log('conn init failed',this.commClasses[i].prototype.name, ex);
