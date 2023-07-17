@@ -1,6 +1,6 @@
 local table = require 'ext.table'
 local class = require 'ext.class'
-local file = require 'ext.file'
+local path = require 'ext.path'
 local socket = require 'socket'
 local mime = require 'mime'
 local json = require 'dkjson'
@@ -291,10 +291,10 @@ function Server:connectRemoteCoroutine(client)
 self:log('upgrading to ssl...')
 		local ssl = require 'ssl'	-- package luasec
 		-- TODO instead, just ask whoever is launching the server
-self:log('keyfile', self.keyfile, 'exists', file(self.keyfile):exists())
-self:log('certfile', self.certfile, 'exists', file(self.certfile):exists())
-		assert(file(self.keyfile):exists())
-		assert(file(self.certfile):exists())
+self:log('keyfile', self.keyfile, 'exists', path(self.keyfile):exists())
+self:log('certfile', self.certfile, 'exists', path(self.certfile):exists())
+		assert(path(self.keyfile):exists())
+		assert(path(self.certfile):exists())
 		local err
 		client, err = assert(ssl.wrap(client, {
 			mode = 'server',
