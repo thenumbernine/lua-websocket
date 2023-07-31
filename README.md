@@ -20,14 +20,14 @@ Also provides an AJAX fallback, but some specific client code must be used with 
 
 To recieve messages, override the Server class 
 Ex:
-```
+``` Lua
 local MyServer = class(require 'websocket.server')
 ```
 
 To send messages, override the SimpleConn class and assign the new class to the server's connClass member.
 Ex:
-```
-MyConn = class(require 'websocket.simpleconn')
+``` Lua
+local MyConn = class(require 'websocket.simpleconn')
 MyServer.connClass = MyConn
 ```
 
