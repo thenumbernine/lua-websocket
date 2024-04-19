@@ -107,39 +107,27 @@ function WebSocketConn:readFrameCoroutine()
 			error('readFrameCoroutine got continuation frame')	-- TODO handle continuations
 		elseif opcode == FRAME_TEXT or opcode == FRAME_DATA then	-- new text/binary frame
 			local decoded = self:readFrameCoroutine_DecodeData()
-			if self.logging then
-				print('readFrameCoroutine got',decoded)
-			end
+--DEBUG:print('readFrameCoroutine got',decoded)
 			-- now process 'decoded'
 			self.server.threads:add(function()
 				self:received(decoded)
 			end)
 		elseif opcode == FRAME_CLOSE then	-- connection close
-			if self.logging then
-				print('readFrameCoroutine got connection close')
-			end
+--DEBUG:print('readFrameCoroutine got connection close')
 			local decoded = self:readFrameCoroutine_DecodeData()
-			if self.logging then
-				print('connection closed. reason ('..#decoded..'):',decoded)
-			end
+--DEBUG:print('connection closed. reason ('..#decoded..'):',decoded)
 			self.done = true
 			break
 		elseif opcode == FRAME_PING then -- ping
-			if self.logging then
-				print('readFrameCoroutine got ping')
-			end
+--DEBUG:print('readFrameCoroutine got ping')
 			-- TODO send FRAME_PONG response?
 		elseif opcode == FRAME_PONG then -- pong
-			if self.logging then
-				print('readFrameCoroutine got pong')
-			end
+--DEBUG:print('readFrameCoroutine got pong')
 		else
 			error("got a reserved opcode: "..opcode)
 		end
 	end
-	if self.logging then
-		print('readFrameCoroutine stopped')
-	end
+--DEBUG:print('readFrameCoroutine stopped')
 end
 
 -- private
@@ -156,9 +144,9 @@ function WebSocketConn:listenCoroutine()
 		else
 			if reason == 'wantread' then
 				-- luasec case
---print('got wantread, calling select...')
+--DEBUG:print('got wantread, calling select...')
 				socket.select(nil, {self.socket})
---print('...done calling select')
+--DEBUG:print('...done calling select')
 			elseif reason == 'timeout' then
 			elseif reason == 'closed' then
 				self.done = true
@@ -174,9 +162,7 @@ function WebSocketConn:listenCoroutine()
 
 	-- one thread needs responsibility to close ...
 	self:close()
-	if self.logging then
-		print('listenCoroutine stopped')
-	end
+--DEBUG:print('listenCoroutine stopped')
 end
 
 -- public
@@ -189,9 +175,7 @@ function WebSocketConn:send(msg, opcode)
 	-- upon sending this to the browser, the browser is sending back 6 chars and then crapping out
 	--	no warnings given.  browser keeps acting like all is cool but it stops actually sending data afterwards.
 	local nmsg = #msg
-	if self.logging then
-		print('send',nmsg,msg)
-	end
+--DEBUG:print('send',nmsg,msg)
 	if nmsg < 126 then
 		local data = string.char(
 			bit.bor(0x80, opcode),
@@ -203,9 +187,7 @@ function WebSocketConn:send(msg, opcode)
 	elseif nmsg >= self.sizeLimitBeforeFragmenting then
 		-- multiple fragmented frames
 		-- ... it looks like the browser is sending the fragment headers to websocket onmessage? along with the frame data?
-		if self.logging then
-			print('sending large websocket frame fragmented -- msg size',nmsg)
-		end
+--DEBUG:print('sending large websocket frame fragmented -- msg size',nmsg)
 		local fragopcode = opcode
 		for start=0,nmsg-1,self.fragmentSize do
 			local len = self.fragmentSize
@@ -214,9 +196,7 @@ function WebSocketConn:send(msg, opcode)
 			if start + len == nmsg then
 				headerbyte = bit.bor(headerbyte, 0x80)
 			end
-			--if self.logging then
-			--	print('sending header '..headerbyte..' len '..len)
-			--end
+--DEBUG:print('sending header '..headerbyte..' len '..len)
 			local data
 			if len < 126 then
 				data = string.char(
@@ -254,9 +234,7 @@ function WebSocketConn:send(msg, opcode)
 		-- large frame ... not working?
 		-- these work fine localhost / non-tls
 		-- but when I use tls / Chrome doesn't seem to receive
-		if self.logging then
-			print('sending large websocket frame of size', nmsg)
-		end
+--DEBUG:print('sending large websocket frame of size', nmsg)
 		local data = string.char(
 			bit.bor(0x80, opcode),
 			127,

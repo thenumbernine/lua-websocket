@@ -32,9 +32,6 @@ Server.connClass = require 'websocket.simpleconn'
 -- default port goes here
 Server.port = 27000
 
--- TODO log levels
-Server.logging = false
-
 -- whether to use TLS
 Server.usetls = false
 
@@ -63,7 +60,6 @@ function Server:init(args)
 		self.keyfile = args.keyfile
 		self.certfile = args.certfile
 	end
-	if args.logging ~= nil then self.logging = args.logging end
 
 	self.getTime = args.getTime or require 'websocket.gettimeofday'
 
@@ -78,11 +74,11 @@ function Server:init(args)
 
 	local address = args.address or '*'
 	self.hostname = assert(args.hostname, "expected hostname")
-self:log("hostname "..tostring(self.hostname))
-self:log("binding to "..tostring(address)..":"..tostring(self.port))
+--DEBUG:self:log("hostname "..tostring(self.hostname))
+--DEBUG:self:log("binding to "..tostring(address)..":"..tostring(self.port))
 	self.socket = assert(socket.bind(address, self.port))
 	self.socketaddr, self.socketport = self.socket:getsockname()
-self:log('listening '..self.socketaddr..':'..self.socketport)
+--DEBUG:self:log('listening '..self.socketaddr..':'..self.socketport)
 	self.socket:settimeout(0, 'b')
 end
 
@@ -99,7 +95,6 @@ function Server:fmtTime()
 end
 
 function Server:log(...)
-	if not self.logging then return end
 	print(self:fmtTime(), ...)
 end
 
@@ -119,9 +114,9 @@ function Server:receiveBlocking(conn, waitduration)
 		data, reason = conn:receive('*l')
 		if not data then
 			if reason == 'wantread' then
---self:log('got wantread, calling select...')
+--DEBUG:self:log('got wantread, calling select...')
 				socket.select(nil, {conn})
---self:log('...done calling select')
+--DEBUG:self:log('...done calling select')
 			else
 				if reason ~= 'timeout' then
 					return nil, reason		-- error() ?
@@ -145,18 +140,18 @@ end
 
 -- send and make sure you send everything, and error upon fail
 function Server:send(conn, data)
-self:log(conn, '<<', data)
+--DEBUG:self:log(conn, '<<', data)
 	local i = 1
 	while true do
 		-- conn:send() successful response will be numberBytesSent, nil, nil, time
 		-- conn:send() failed response will be nil, 'wantwrite', numBytesSent, time
-self:log(conn, ' sending from '..i)
+--DEBUG:self:log(conn, ' sending from '..i)
 		local successlen, reason, faillen, time = conn:send(data:sub(i))	-- socket.send lets you use i,j as substring args, but does luasec's ssl.wrap ?
-self:log(conn, '...', successlen, reason, faillen, time)
-self:log(conn, '...getstats()', conn:getstats())
+--DEBUG:self:log(conn, '...', successlen, reason, faillen, time)
+--DEBUG:self:log(conn, '...getstats()', conn:getstats())
 		if successlen ~= nil then
 			assert(reason ~= 'wantwrite')	-- will wantwrite get set only if res[1] is nil?
-self:log(conn, '...done sending')
+--DEBUG:self:log(conn, '...done sending')
 			return successlen, reason, faillen, time
 		end
 		if reason ~= 'wantwrite' then
@@ -174,9 +169,9 @@ function Server:update()
 	-- listen for new connections
 	local client = self.socket:accept()
 	if client then
-self:log('got connection!',client)
-self:log('connection from', client:getpeername())
-self:log('spawning new thread...')
+--DEBUG:self:log('got connection!',client)
+--DEBUG:self:log('connection from', client:getpeername())
+--DEBUG:self:log('spawning new thread...')
 		self.threads:add(self.connectRemoteCoroutine, self, client)
 	end
 
@@ -190,13 +185,13 @@ self:log('spawning new thread...')
 			if AjaxSocketConn:isa(conn.socketImpl) then
 				if self.ajaxConns[conn.socketImpl.sessionID] ~= conn then
 					-- or todo, dump all conns here?
-self:log('session', conn.socketImpl.sessionID, 'overwriting old conn', conn, 'with', self.ajaxConns[conn.socketImpl.sessionID])
+--DEBUG:self:log('session', conn.socketImpl.sessionID, 'overwriting old conn', conn, 'with', self.ajaxConns[conn.socketImpl.sessionID])
 				else
 					self.ajaxConns[conn.socketImpl.sessionID] = nil
-self:log('removing ajax conn',conn.socketImpl.sessionID)
+--DEBUG:self:log('removing ajax conn',conn.socketImpl.sessionID)
 				end
 			else
-self:log('removing websocket conn')
+--DEBUG:self:log('removing websocket conn')
 			end
 			self.conns[i] = nil
 		else
@@ -288,11 +283,11 @@ function Server:connectRemoteCoroutine(client)
 	-- TODO need to specify cert files
 	-- TODO but if you want to handle both https and non-https on different ports, that means two connections, that means better make non-blocking the default
 	if self.usetls then
-self:log('upgrading to ssl...')
+--DEBUG:self:log('upgrading to ssl...')
 		local ssl = require 'ssl'	-- package luasec
 		-- TODO instead, just ask whoever is launching the server
-self:log('keyfile', self.keyfile, 'exists', path(self.keyfile):exists())
-self:log('certfile', self.certfile, 'exists', path(self.certfile):exists())
+--DEBUG:self:log('keyfile', self.keyfile, 'exists', path(self.keyfile):exists())
+--DEBUG:self:log('certfile', self.certfile, 'exists', path(self.certfile):exists())
 		assert(path(self.keyfile):exists())
 		assert(path(self.certfile):exists())
 		local err
@@ -312,8 +307,8 @@ self:log('certfile', self.certfile, 'exists', path(self.certfile):exists())
 		assert(client:settimeout(0, 'b'))
 		--client:setkeepalive()				-- nope
 		--client:setoption('keepalive', true)	-- nope
-self:log('ssl.wrap error:', err)
-self:log('doing handshake...')
+--DEBUG:self:log('ssl.wrap error:', err)
+--DEBUG:self:log('doing handshake...')
 		-- from https://github-wiki-see.page/m/brunoos/luasec/wiki/LuaSec-1.0.x
 		-- also goes in receiveBlocking for conn:receive
 		local result,reason
@@ -321,30 +316,30 @@ self:log('doing handshake...')
 			coroutine.yield()
 			result, reason = client:dohandshake()
 -- there can be a lot of these ...
---self:log('dohandshake', result, reason)
+--DEBUG:self:log('dohandshake', result, reason)
 			if reason == 'wantread' then
---self:log('got wantread, calling select...')
+--DEBUG:self:log('got wantread, calling select...')
 				socket.select(nil, {client})
---self:log('...done calling select')
+--DEBUG:self:log('...done calling select')
 			end
 			if reason == 'unknown state' then error('handshake conn in unknown state') end
 		end
-self:log("dohandshake finished")
+--DEBUG:self:log("dohandshake finished")
 	end
 	--]]
 
 	-- chrome has a bug where it connects and asks for a favicon even if there is none, or something, idk ...
 	local firstLine, reason = self:receiveBlocking(client, 5)
-self:log(client,'>>',firstLine,reason)
+--DEBUG:self:log(client,'>>',firstLine,reason)
 	if not (firstLine == 'GET / HTTP/1.1' or firstLine == 'POST / HTTP/1.1') then
-self:log('got a non-http conn: ',firstLine)
+--DEBUG:self:log('got a non-http conn: ',firstLine)
 		return
 	end
 
 	local header = table()
 	while true do
 		local recv = self:mustReceiveBlocking(client, 1)
-self:log(client,'>>',recv)
+--DEBUG:self:log(client,'>>',recv)
 		if recv == '' then break end
 		local k,v = recv:match('^(.-): (.*)$')
 		k = k:lower()
@@ -376,7 +371,7 @@ self:log(client,'>>',recv)
 
 			local body, err, partial = client:receive(tonumber(header['content-length']) or '*a')
 			body = body or partial
-self:log(client,'>>',body)
+--DEBUG:self:log(client,'>>',body)
 			assert(#body == 8)
 
 			local response = digest('md5', be32ToStr(digits1) .. be32ToStr(digits2) .. body, true)
@@ -420,7 +415,7 @@ self:log(client,'>>',body)
 			end
 
 			-- only add to Server.conns through *HERE*
-self:log('creating websocket conn')
+--DEBUG:self:log('creating websocket conn')
 			local serverConn = self.connClass{
 				server = self,
 				socket = client,
@@ -428,8 +423,7 @@ self:log('creating websocket conn')
 				sizeLimitBeforeFragmenting = self.sizeLimitBeforeFragmenting,
 				fragmentSize = self.fragmentSize,
 			}
-			serverConn.socketImpl.logging = self.logging
-self:log('constructing ServerConn',serverConn,'...')
+--DEBUG:self:log('constructing ServerConn',serverConn,'...')
 			self.lastActiveConnTime = self.getTime()
 			return
 		end
@@ -442,11 +436,11 @@ self:log('constructing ServerConn',serverConn,'...')
 
 	local body, err, partial = client:receive(tonumber(header['content-length']) or '*a')
 	body = body or partial
-self:log(client,'>>',body)
+--DEBUG:self:log(client,'>>',body)
 	local receiveQueue = json.decode(body)
 	local sessionID
 	if not receiveQueue then
-self:log('failed to decode ajax body',body)
+--DEBUG:self:log('failed to decode ajax body',body)
 		receiveQueue = {}
 	else
 		if #receiveQueue > 0 then
@@ -457,7 +451,7 @@ self:log('failed to decode ajax body',body)
 			end
 		end
 	end
-self:log('got session id', sessionID)
+--DEBUG:self:log('got session id', sessionID)
 
 	local newSessionID
 	if sessionID then	-- if the client has a sessionID then ...
@@ -466,18 +460,18 @@ self:log('got session id', sessionID)
 		-- these are fake conn objects -- they merge multiple conns into one polling fake conn
 		-- so headers and data need to be re-sent every time a new poll conn is made
 		if not serverConn then
-self:log('NO CONN FOR ', sessionID)
+--DEBUG:self:log('NO CONN FOR ', sessionID)
 		end
 	else
 		newSessionID = true
 		sessionID = mime.b64(digest('sha1', header:values():concat()..os.date(), true))
-self:log('no sessionID -- generating session id', sessionID)
+--DEBUG:self:log('no sessionID -- generating session id', sessionID)
 	end
 	-- no pre-existing connection? make a new one
 	if serverConn then
-self:log('updating ajax conn')
+--DEBUG:self:log('updating ajax conn')
 	else
-self:log('creating ajax conn',sessionID,newSessionID)
+--DEBUG:self:log('creating ajax conn',sessionID,newSessionID)
 		serverConn = self.connClass{
 			server = self,
 			implClass = AjaxSocketConn,
@@ -494,7 +488,7 @@ self:log('creating ajax conn',sessionID,newSessionID)
 	end
 	local response = json.encode(responseQueue)
 
-self:log('sending ajax response size',#response,'body',response)
+--DEBUG:self:log('sending ajax response size',#response,'body',response)
 
 	-- send response header
 	local lines = table()
