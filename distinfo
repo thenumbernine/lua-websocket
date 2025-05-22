@@ -1,0 +1,18 @@
+name = "websocket"
+files = {
+	["README.md"] = "websocket/README.md",
+	["ajaxsocketconn.lua"] = "websocket/ajaxsocketconn.lua",
+	["digest.lua"] = "websocket/digest.lua",
+	["gettimeofday.lua"] = "websocket/gettimeofday.lua",
+	["server.lua"] = "websocket/server.lua",
+	["simpleconn.lua"] = "websocket/simpleconn.lua",
+	["src/Makefile"] = "websocket/src/Makefile",
+	["src/gettimeofday.c"] = "websocket/src/gettimeofday.c",
+	["websocketconn.lua"] = "websocket/websocketconn.lua",
+	["websockethixieconn.lua"] = "websocket/websockethixieconn.lua",
+	["www/websocket.js"] = "websocket/www/websocket.js",
+}
+deps = {
+	"ext",
+	"threadmanager",
+}
