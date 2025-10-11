@@ -1,5 +1,6 @@
+local string = require 'ext.string'
+
 local digest
-	
 local has, crypto = pcall(require,'crypto')	-- luacrypto
 if has then
 	digest = crypto.digest
