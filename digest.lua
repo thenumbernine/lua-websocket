@@ -6,7 +6,7 @@ if has then
 end
 if not digest then
 	-- luaossl
-	local has, openssl_digest = pcall(require,'openssl.digest')
+	local has, openssl_digest = pcall(require, 'openssl.digest')
 	if has then
 		local string = require 'ext.string'
 		digest = function(algo, str, bin)
