@@ -1,3 +1,9 @@
+-- [=[ TODO this will always succeed even if it falls back on os.clock...
+local success, ext_timer = pcall(require, 'ext.timer')
+if successs then
+	return ext_timer.getTime
+end
+--]=]
 -- [=[ using luajit ffi
 local success, getTime = pcall(function()
 	local ffi = require 'ffi'
@@ -20,7 +26,7 @@ int gettimeofday(struct timeval*, void*);
 	end
 end)
 --print(success, getTime)
-if success then 
+if success then
 	--print('using ffi gettimeofday')
 	return getTime
 end
